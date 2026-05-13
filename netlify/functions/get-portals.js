@@ -1,4 +1,4 @@
-// Returns every Portal (custom object 2-58156993) in HubSpot — used by
+// Returns every Portal (custom object 2-58411705) in HubSpot — used by
 // the admin trip picker (/admin.html). For each portal we include a flag
 // indicating whether it's associated to the admin's contact, so the
 // frontend can group "your trips" above "other trips".
@@ -9,16 +9,16 @@
 // Required env var: HUBSPOT_API_KEY
 //
 // Notes:
-//   - The Portal object id "2-58156993" matches what portal.js already uses.
-//   - The "global" defaults record (id 50506535214) is filtered out — it's
+//   - The Portal object id "2-58411705" matches what portal.js already uses.
+//   - The "global" defaults record (id 54796059552) is filtered out — it's
 //     not a real trip, just shared content. Avoiding it in the picker.
 //   - Only contacts with admin_role set should be hitting this endpoint.
 //     We don't enforce that here yet (no auth layer); the frontend checks
 //     adminRole from sessionStorage before navigating to /admin.html. If
 //     this is ever exposed at a stable URL we'll add server-side gating.
 
-const PORTAL_OBJECT_ID = "2-58156993";
-const GLOBAL_PORTAL_ID = "50506535214";
+const PORTAL_OBJECT_ID = "2-58411705";
+const GLOBAL_PORTAL_ID = "54796059552";
 
 export async function handler(event) {
   try {

@@ -32,7 +32,7 @@
 
 import webpush from "web-push";
 
-const PORTAL_OBJECT_ID = "2-58156993";
+const PORTAL_OBJECT_ID = "2-58411705";
 
 export async function handler(event) {
   try {

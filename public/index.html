@@ -2772,7 +2772,7 @@
         // Document Uploads tab — list previously-uploaded files (pulled from
         // Jotform's API by the logged-in email) and embed the upload form
         // beneath. Form URL comes from documents_upload_form on the global
-        // Portal record (id 50506535214).
+        // Portal record (id 54796059552).
         content.innerHTML =
           `<div style="color:#999; font-size:13px; text-align:center; padding:30px; letter-spacing:1px;">LOADING DOCUMENTS...</div>`;
         content.style.opacity = 1;
@@ -2781,7 +2781,7 @@
       }
 
       if (field === "faqs") {
-        // FAQs come from the global Portal record (id 50506535214) by default;
+        // FAQs come from the global Portal record (id 54796059552) by default;
         // the per-trip `portalData.faqs` is used as a fallback if the global
         // FAQ field is empty.
         content.innerHTML = `<div style="color:#999; font-size:13px; text-align:center; padding:30px; letter-spacing:1px;">LOADING FAQs...</div>`;

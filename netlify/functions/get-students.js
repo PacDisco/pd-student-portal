@@ -21,7 +21,7 @@ export async function handler(event) {
       };
     }
 
-    const OBJECT = "2-58156993";
+    const OBJECT = "2-58411705";
     const headers = {
       Authorization: `Bearer ${process.env.HUBSPOT_API_KEY}`,
       "Content-Type": "application/json"

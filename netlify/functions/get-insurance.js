@@ -1,7 +1,7 @@
 export async function handler(event) {
   try {
-    const OBJECT = "2-58156993";
-    const FIXED_ID = "50506535214";
+    const OBJECT = "2-58411705";
+    const FIXED_ID = "54796059552";
     const headers = {
       Authorization: `Bearer ${process.env.HUBSPOT_API_KEY}`,
       "Content-Type": "application/json"

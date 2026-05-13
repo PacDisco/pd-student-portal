@@ -21,11 +21,11 @@ export async function handler(event) {
       };
     }
 
-    const OBJECT = "2-58156993";
+    const OBJECT = "2-58411705";
     // The "global" Portal record holds shared default content (insurance,
     // FAQs, payment form URL, document upload form, etc.). Any property
     // that's empty on a trip's record falls back to whatever is set here.
-    const GLOBAL_PORTAL_ID = "50506535214";
+    const GLOBAL_PORTAL_ID = "54796059552";
     const headers = {
       Authorization: `Bearer ${process.env.HUBSPOT_API_KEY}`,
       "Content-Type": "application/json"
