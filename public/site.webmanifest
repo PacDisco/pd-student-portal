@@ -1,5 +1,5 @@
 {
-  "name": "Pacific Discovery Student Portal",
+  "name": "Pacific Discovery Portal",
   "short_name": "Pacific Discovery",
   "icons": [
     {
@@ -15,7 +15,7 @@
       "purpose": "maskable"
     }
   ],
-  "theme_color": "#55BBD2",
-  "background_color": "#f8f8f8",
+  "theme_color": "#55bbd2",
+  "background_color": "#ffffff",
   "display": "standalone"
 }
