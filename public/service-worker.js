@@ -1,7 +1,7 @@
 // Bump this string any time you ship a release that should bust the
 // install-time cache for previously-installed PWA users. The activate
 // handler below deletes any cache whose name doesn't match.
-const CACHE_NAME = "unearthed-v7-photos";
+const CACHE_NAME = "pacific-discovery-v7-photos";
 const STATIC_FILES = ["/index.html", "/login.html", "/site.webmanifest"];
 
 // Install — cache static files
@@ -79,12 +79,12 @@ self.addEventListener("push", (e) => {
   catch (_) {
     try { data = { body: e.data ? e.data.text() : "" }; } catch (_) { /* ignore */ }
   }
-  const title = data.title || "Unearthed Portal";
+  const title = data.title || "Pacific Discovery Student Portal";
   const options = {
     body: data.body || "There's a new message on your trip's Message Board.",
     icon: data.icon || "/web-app-manifest-192x192.png",
     badge: data.badge || "/favicon-96x96.png",
-    tag: data.tag || "unearthed-message-board", // dedupe consecutive pushes
+    tag: data.tag || "pacific-discovery-message-board", // dedupe consecutive pushes
     renotify: true,
     data: { url: data.url || "/index.html" }
   };

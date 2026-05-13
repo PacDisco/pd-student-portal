@@ -1,20 +1,20 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta name="theme-color" content="#2d6b74">
+  <meta name="theme-color" content="#55BBD2">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Unearthed">
+  <meta name="apple-mobile-web-app-title" content="Pacific Discovery">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="apple-touch-icon" href="/icon-192.png">
   <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="shortcut icon" href="/favicon.ico" />
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-  <meta name="apple-mobile-web-app-title" content="Unearthed Education" />
+  <meta name="apple-mobile-web-app-title" content="Pacific Discovery" />
   <link rel="manifest" href="/site.webmanifest" />
 
-  <title>Unearthed Education Portal</title>
+  <title>Pacific Discovery Student Portal</title>
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 
@@ -22,15 +22,15 @@
     body {
       margin: 0;
       font-family: 'Inter', sans-serif;
-      background: #f9f8f2;
-      color: #231f20;
+      background: #f8f8f8;
+      color: #212121;
     }
 
     header {
       position: relative;
       text-align: center;
       padding: 30px 20px 24px;
-      background: #2d6b74;
+      background: #55BBD2;
       color: white;
     }
 
@@ -66,8 +66,8 @@
 
     .tile {
       background: white;
-      border: 1px solid #e2decf;
-      border-top: 4px solid #e2decf;
+      border: 1px solid #e5e7eb;
+      border-top: 4px solid #e5e7eb;
       padding: 40px 20px;
       text-align: center;
       cursor: pointer;
@@ -82,10 +82,10 @@
       box-shadow: 0 8px 20px rgba(0,0,0,0.05);
     }
 
-    .tile.active-teal  { border-top: 4px solid #59a1aa; }
-    .tile.active-blue  { border-top: 4px solid #aed1db; }
-    .tile.active-olive { border-top: 4px solid #a9a66e; }
-    .tile.active-sand  { border-top: 4px solid #d6a380; }
+    .tile.active-teal  { border-top: 4px solid #55BBD2; }
+    .tile.active-blue  { border-top: 4px solid #3B5998; }
+    .tile.active-olive { border-top: 4px solid #81C243; }
+    .tile.active-sand  { border-top: 4px solid #f15c39; }
 
     .tile.active {
       border-top-width: 4px;
@@ -122,7 +122,7 @@
       margin-bottom: 24px;
       cursor: pointer;
       font-size: 13px;
-      color: #231f20;
+      color: #212121;
       transition: opacity 0.2s ease;
     }
 
@@ -177,12 +177,12 @@
       padding: 12px 16px;
       margin-bottom: 20px;
       font-size: 13px;
-      color: #2d6b74;
+      color: #55BBD2;
     }
     .push-prompt-text { flex: 1 1 220px; }
     .push-prompt-btn {
       padding: 9px 16px;
-      background: #2d6b74;
+      background: #55BBD2;
       color: white;
       border: none;
       font-family: inherit;
@@ -212,7 +212,7 @@
       margin: 20px auto 100px;
       padding: 40px;
       background: white;
-      border: 1px solid #e2decf;
+      border: 1px solid #e5e7eb;
       line-height: 1.7;
       transition: opacity 0.2s ease;
     }
@@ -307,14 +307,14 @@
     #installSheet .sheet-btn:hover { opacity: 0.85; }
 
     #installSheet .sheet-btn.primary {
-      background: #2d6b74;
+      background: #55BBD2;
       color: white;
     }
 
     #installSheet .sheet-btn.ghost {
       background: transparent;
       color: #999;
-      border: 1px solid #e2decf;
+      border: 1px solid #e5e7eb;
       flex: 0 0 auto;
       padding: 14px 20px;
     }
@@ -329,7 +329,7 @@
       bottom: 20px;
       width: 180px;
       background: white;
-      border: 1px solid #e2decf;
+      border: 1px solid #e5e7eb;
       border-top: 3px solid #59a1aa;
       padding: 14px 14px 12px;
       box-shadow: 0 6px 18px rgba(0,0,0,0.08);
@@ -376,7 +376,7 @@
       cursor: pointer;
       line-height: 1;
     }
-    #qrCard .qr-close:hover { color: #2d6b74; }
+    #qrCard .qr-close:hover { color: #55BBD2; }
 
     /* Hide the QR on touch / narrow devices — install sheet covers them. */
     @media (max-width: 900px), (pointer: coarse) {
@@ -392,8 +392,8 @@
     }
 
     .student-card {
-      background: #f9f8f2;
-      border: 1px solid #e2decf;
+      background: #f8f8f8;
+      border: 1px solid #e5e7eb;
       border-top: 4px solid #59a1aa;
       padding: 20px;
     }
@@ -411,8 +411,8 @@
       object-fit: cover;
       display: block;
       margin: 0 auto 14px;
-      background: #e2decf;
-      border: 1px solid #e2decf;
+      background: #e5e7eb;
+      border: 1px solid #e5e7eb;
     }
 
     .student-card .contact-info {
@@ -428,7 +428,7 @@
 
     .student-card .paid-badge {
       display: inline-block;
-      background: #2d6b74;
+      background: #55BBD2;
       color: white;
       font-size: 11px;
       font-weight: 600;
@@ -448,7 +448,7 @@
       margin-right: 8px;
       margin-bottom: 4px;
       background: #e8f4f5;
-      color: #2d6b74;
+      color: #55BBD2;
       padding: 2px 8px;
       font-size: 11px;
     }
@@ -457,7 +457,7 @@
        Sits above the parents section. Container draws the same rule the
        parent section uses so the whole card stays visually consistent. */
     .student-card .student-school-fields {
-      border-top: 1px solid #e2decf;
+      border-top: 1px solid #e5e7eb;
       padding-top: 12px;
       margin-top: 12px;
       margin-bottom: 4px;
@@ -481,7 +481,7 @@
       display: inline-block;
       padding: 3px 10px;
       background: #ece6d6;
-      color: #231f20;
+      color: #212121;
       font-size: 11px;
       font-weight: 600;
       letter-spacing: 0.5px;
@@ -516,7 +516,7 @@
     }
 
     .student-card .parent-section {
-      border-top: 1px solid #e2decf;
+      border-top: 1px solid #e5e7eb;
       padding-top: 12px;
       margin-top: 12px;
     }
@@ -547,8 +547,8 @@
       margin-top: 12px;
       padding: 10px 14px;
       background: transparent;
-      border: 1px solid #5b7f9e;
-      color: #5b7f9e;
+      border: 1px solid #3B5998;
+      color: #3B5998;
       font-family: 'Inter', sans-serif;
       font-size: 11px;
       font-weight: 600;
@@ -558,14 +558,14 @@
     }
 
     .student-expand-btn:hover {
-      background: #5b7f9e;
+      background: #3B5998;
       color: white;
     }
 
     .student-card-details {
       margin-top: 14px;
       padding-top: 14px;
-      border-top: 1px solid #e2decf;
+      border-top: 1px solid #e5e7eb;
     }
 
     .application-detail-empty {
@@ -599,7 +599,7 @@
     }
 
     .application-field-value {
-      color: #231f20;
+      color: #212121;
       font-weight: 500;
       word-break: break-word;
     }
@@ -617,7 +617,7 @@
     .application-field-file {
       display: inline-block;
       padding: 5px 12px;
-      background: #5b7f9e;
+      background: #3B5998;
       color: white !important;
       font-size: 10px;
       font-weight: 600;
@@ -652,7 +652,7 @@
     .app-modal-content {
       position: relative;
       background: white;
-      border: 1px solid #e2decf;
+      border: 1px solid #e5e7eb;
       width: 100%;
       max-width: 720px;
       max-height: 90vh;
@@ -667,7 +667,7 @@
       justify-content: space-between;
       gap: 16px;
       padding: 20px 24px 16px;
-      border-bottom: 1px solid #e2decf;
+      border-bottom: 1px solid #e5e7eb;
     }
 
     .app-modal-header h2 {
@@ -675,7 +675,7 @@
       font-size: 14px;
       letter-spacing: 1.5px;
       font-weight: 600;
-      color: #2d6b74;
+      color: #55BBD2;
       text-transform: uppercase;
     }
 
@@ -684,7 +684,7 @@
       font-size: 18px;
       font-weight: 600;
       letter-spacing: 0.5px;
-      color: #231f20;
+      color: #212121;
       text-transform: none;
       margin-top: 4px;
     }
@@ -700,7 +700,7 @@
       transition: color 0.2s ease;
     }
 
-    .app-modal-close:hover { color: #2d6b74; }
+    .app-modal-close:hover { color: #55BBD2; }
 
     .app-modal-body {
       padding: 18px 24px 24px;
@@ -730,8 +730,8 @@
     }
 
     .expedition-card {
-      background: #f9f8f2;
-      border: 1px solid #e2decf;
+      background: #f8f8f8;
+      border: 1px solid #e5e7eb;
       border-top: 4px solid #a9a66e;
       padding: 20px;
     }
@@ -751,7 +751,7 @@
     .expedition-card .event-date {
       font-size: 15px;
       font-weight: 600;
-      color: #231f20;
+      color: #212121;
       margin-bottom: 8px;
     }
 
@@ -793,7 +793,7 @@
     /* Match the existing event-link button styling for the new
        button-as-link in the EDIT APPLICATION row. */
     .quick-links-card .event-link--app {
-      background: #5b7f9e;
+      background: #3B5998;
       border: none;
       cursor: pointer;
       font-family: inherit;
@@ -829,7 +829,7 @@
       padding: 0;
       background: transparent;
       border: none;
-      color: #5b7f9e;
+      color: #3B5998;
       font-family: inherit;
       font-size: 11px;
       font-weight: 600;
@@ -858,7 +858,7 @@
     /* TEACHER CARDS */
     .teacher-section {
       margin-top: 32px;
-      border-top: 1px solid #e2decf;
+      border-top: 1px solid #e5e7eb;
       padding-top: 24px;
     }
 
@@ -881,8 +881,8 @@
        Both share identical layout so the SCHOOL CONTACTS row stays
        visually uniform. The variant class only swaps the accent color. */
     .leader-card {
-      background: #f9f8f2;
-      border: 1px solid #e2decf;
+      background: #f8f8f8;
+      border: 1px solid #e5e7eb;
       border-top: 4px solid #aed1db;
       padding: 18px 20px 20px;
       display: flex;
@@ -921,7 +921,7 @@
       font-size: 10px;
       letter-spacing: 1.5px;
       font-weight: 600;
-      color: #5b7f9e;
+      color: #3B5998;
       margin-bottom: 4px;
       text-transform: uppercase;
       align-self: flex-start;
@@ -931,7 +931,7 @@
       margin: 0 0 8px;
       font-size: 14px;
       font-weight: 600;
-      color: #231f20;
+      color: #212121;
     }
 
     .leader-card-contact {
@@ -971,7 +971,7 @@
       padding: 0;
       background: none;
       border: none;
-      color: #5b7f9e;
+      color: #3B5998;
       font-size: 11px;
       font-weight: 600;
       letter-spacing: 1.2px;
@@ -984,13 +984,13 @@
     /* Variant accents — picks up the existing palette so the two roles
        still read as distinct at a glance. */
     .leader-card--school-leader     { border-top-color: #aed1db; }
-    .leader-card--school-leader     .leader-card-role { color: #5b7f9e; }
+    .leader-card--school-leader     .leader-card-role { color: #3B5998; }
     .leader-card--expedition-leader { border-top-color: #d6a380; }
     .leader-card--expedition-leader .leader-card-role { color: #d6a380; }
     /* Admin variant — School Support Manager / Expedition Planning Manager. Distinct
        teal accent so admins read as a separate role at a glance. */
-    .leader-card--admin             { border-top-color: #2d6b74; }
-    .leader-card--admin             .leader-card-role { color: #2d6b74; }
+    .leader-card--admin             { border-top-color: #55BBD2; }
+    .leader-card--admin             .leader-card-role { color: #55BBD2; }
 
     /* FLIGHTS & INSURANCE */
     .flights-grid {
@@ -1001,8 +1001,8 @@
     }
 
     .flight-card {
-      background: #f9f8f2;
-      border: 1px solid #e2decf;
+      background: #f8f8f8;
+      border: 1px solid #e5e7eb;
       border-top: 4px solid #59a1aa;
       padding: 20px;
     }
@@ -1022,7 +1022,7 @@
     .flight-card .flight-date {
       font-size: 15px;
       font-weight: 600;
-      color: #231f20;
+      color: #212121;
       margin-bottom: 6px;
     }
 
@@ -1052,7 +1052,7 @@
 
     .insurance-section {
       margin-top: 32px;
-      border-top: 1px solid #e2decf;
+      border-top: 1px solid #e5e7eb;
       padding-top: 24px;
     }
 
@@ -1085,7 +1085,7 @@
 
     .payments-schedule {
       margin-top: 24px;
-      border-top: 1px solid #e2decf;
+      border-top: 1px solid #e5e7eb;
       padding-top: 24px;
     }
 
@@ -1118,19 +1118,19 @@
 
     .payment-row .payment-date {
       font-size: 14px;
-      color: #231f20;
+      color: #212121;
       flex: 1;
     }
 
     .payment-row .payment-amount {
       font-size: 16px;
       font-weight: 600;
-      color: #2d6b74;
+      color: #55BBD2;
       text-align: right;
     }
 
     .payment-row .payment-amount .payment-amount-link {
-      color: #2d6b74;
+      color: #55BBD2;
       text-decoration: none;
       border-bottom: 1px dashed rgba(45, 107, 116, 0.4);
       transition: all 0.2s ease;
@@ -1202,8 +1202,8 @@
        Equally prominent but visually clearly the alternative. */
     .payment-row .payment-amount-link--debit {
       background: #ffffff;
-      color: #2d6b74 !important;
-      border-color: #2d6b74;
+      color: #55BBD2 !important;
+      border-color: #55BBD2;
     }
     .payment-row .payment-amount-link--debit:hover {
       background: #ecf6f7;
@@ -1240,7 +1240,7 @@
       margin-left: 4px;
       padding: 1px 4px;
       background: rgba(45, 107, 116, 0.12);
-      color: #2d6b74;
+      color: #55BBD2;
       font-size: 7px;
       font-weight: 700;
       letter-spacing: 0.8px;
@@ -1297,9 +1297,9 @@
     }
 
     .manual-card {
-      background: #f9f8f2;
-      border: 1px solid #e2decf;
-      border-top: 4px solid #5b7f9e;
+      background: #f8f8f8;
+      border: 1px solid #e5e7eb;
+      border-top: 4px solid #3B5998;
       padding: 22px 20px;
       display: flex;
       flex-direction: column;
@@ -1312,14 +1312,14 @@
       font-size: 13px;
       font-weight: 600;
       letter-spacing: 1.2px;
-      color: #231f20;
+      color: #212121;
     }
 
     .manual-card .manual-link {
       display: inline-block;
       align-self: flex-start;
       padding: 10px 18px;
-      background: #5b7f9e;
+      background: #3B5998;
       color: white !important;
       font-size: 11px;
       font-weight: 600;
@@ -1350,9 +1350,9 @@
     }
 
     .tl-link-card {
-      background: #f9f8f2;
-      border: 1px solid #e2decf;
-      border-top: 3px solid #5b7f9e;
+      background: #f8f8f8;
+      border: 1px solid #e5e7eb;
+      border-top: 3px solid #3B5998;
       padding: 16px 16px 14px;
       display: flex;
       flex-direction: column;
@@ -1365,7 +1365,7 @@
       font-size: 11px;
       font-weight: 600;
       letter-spacing: 1.2px;
-      color: #231f20;
+      color: #212121;
       line-height: 1.3;
     }
 
@@ -1373,7 +1373,7 @@
       display: inline-block;
       align-self: flex-start;
       padding: 7px 14px;
-      background: #5b7f9e;
+      background: #3B5998;
       color: white !important;
       font-size: 10px;
       font-weight: 600;
@@ -1396,7 +1396,7 @@
 
     .docs-section + .docs-section {
       margin-top: 32px;
-      border-top: 1px solid #e2decf;
+      border-top: 1px solid #e5e7eb;
       padding-top: 24px;
     }
 
@@ -1408,8 +1408,8 @@
     }
 
     .docs-card {
-      background: #f9f8f2;
-      border: 1px solid #e2decf;
+      background: #f8f8f8;
+      border: 1px solid #e5e7eb;
       border-top: 4px solid #a9a66e;
       padding: 18px 20px;
       display: flex;
@@ -1428,7 +1428,7 @@
 
     .docs-card .docs-filename {
       font-size: 13px;
-      color: #231f20;
+      color: #212121;
       word-break: break-all;
       margin-bottom: 6px;
       line-height: 1.4;
@@ -1475,7 +1475,7 @@
 
     .docs-jotform-iframe {
       width: 100%;
-      border: 1px solid #e2decf;
+      border: 1px solid #e5e7eb;
       background: white;
       /* Initial height — Jotform's embed handler adjusts this to fit the
          rendered form once it loads, so the form never lives in a scrolling
@@ -1542,8 +1542,8 @@
 <body>
 
 <header>
-  <img src="/Logo-Landscape-Beige.png" alt="Unearthed Education">
-  <h1 id="title">UNEARTHED</h1>
+  <img src="/pacific-discovery-logo.png" alt="Pacific Discovery">
+  <h1 id="title">PACIFIC DISCOVERY</h1>
   <p id="destination">STUDENT PORTAL</p>
   <p id="programPrice" style="font-size:12px; opacity:0.6; margin-top:4px; margin-bottom:0; letter-spacing:1px;"></p>
   <button onclick="logout()" style="position:absolute; right:20px; top:20px; background:transparent; border:1px solid rgba(255,255,255,0.4); color:white; padding:6px 14px; font-size:11px; letter-spacing:1px; cursor:pointer; font-family:'Inter',sans-serif;">LOGOUT</button>
@@ -1901,7 +1901,7 @@
       const cfgRes = await fetch("/.netlify/functions/get-push-config");
       const cfg = await cfgRes.json();
       if (!cfgRes.ok || !cfg.publicKey) {
-        alert("Push isn't configured on the server yet. Please tell info@unearthededucation.org.");
+        alert("Push isn't configured on the server yet. Please tell info@pacificdiscovery.org.");
         return;
       }
       // 3. Subscribe via the service worker.
@@ -2036,7 +2036,7 @@
       if (newWin) newWin.close();
       alert("We couldn\u2019t find an application form submission for your email yet. " +
             "If you\u2019ve recently submitted one, try again in a minute, " +
-            "or contact info@unearthededucation.org.");
+            "or contact info@pacificdiscovery.org.");
     } catch (err) {
       console.error("openApplicationEdit error:", err);
       if (newWin) newWin.close();
@@ -2106,7 +2106,7 @@
         (data.error ? "(" + data.error + ") " : "") +
         (haveFallback
           ? "Opening the standard payment page instead."
-          : "Please try again in a moment, or contact info@unearthededucation.org if it keeps failing.")
+          : "Please try again in a moment, or contact info@pacificdiscovery.org if it keeps failing.")
       );
 
     } catch (err) {
@@ -2120,7 +2120,7 @@
         "Could not reach the payment service. " +
         (haveFallback
           ? "Opening the standard payment page instead."
-          : "Please try again in a moment, or contact info@unearthededucation.org if it keeps failing.")
+          : "Please try again in a moment, or contact info@pacificdiscovery.org if it keeps failing.")
       );
     } finally {
       el.style.opacity = originalOpacity;
@@ -2159,7 +2159,7 @@
         data = JSON.parse(responseText);
       } catch (e) {
         console.error(`[init] portal response was not JSON (HTTP ${res.status}):`, responseText.slice(0, 400));
-        document.body.innerHTML = `<div style="padding:32px; font-family:Inter,sans-serif;"><h1 style="color:#c0392b;">Error loading portal</h1><p>HTTP ${res.status} from /.netlify/functions/portal</p><pre style="background:#f5f1e6; padding:12px; overflow:auto; font-size:11px;">${responseText.slice(0, 800).replace(/[<&>]/g, c => ({"<":"&lt;","&":"&amp;",">":"&gt;"})[c])}</pre></div>`;
+        document.body.innerHTML = `<div style="padding:32px; font-family:Inter,sans-serif;"><h1 style="color:#c0392b;">Error loading portal</h1><p>HTTP ${res.status} from /.netlify/functions/portal</p><pre style="background:#f8f8f8; padding:12px; overflow:auto; font-size:11px;">${responseText.slice(0, 800).replace(/[<&>]/g, c => ({"<":"&lt;","&":"&amp;",">":"&gt;"})[c])}</pre></div>`;
         return;
       }
 
@@ -2229,7 +2229,7 @@
         }
       });
       safeRun("set title",         () => {
-        document.getElementById("title").innerText = portalData.portal_title || "UNEARTHED";
+        document.getElementById("title").innerText = portalData.portal_title || "PACIFIC DISCOVERY";
       });
       safeRun("set destination",   () => {
         document.getElementById("destination").innerText =
@@ -2450,7 +2450,7 @@
     // HubSpot fields end up with placeholder labels like "Payment form url"
     // sitting in them, which would otherwise be rendered as the href and
     // produce a broken relative link
-    // (e.g. https://portal.unearthededucation.org/Payment%20form%20url).
+    // (e.g. https://portal.pacificdiscovery.org/Payment%20form%20url).
     function looksLikeUrl(v) {
       if (!v) return false;
       return /^https?:\/\//i.test(String(v).trim());
@@ -2602,7 +2602,7 @@
         const debitChargeText = fmtMoney(baseNum);
         const baseText        = fmtMoney(baseNum);
         const fallbackLink    = buildPaymentLink(i, baseNum, chargeNum);
-        const tripName        = portalData.portal_title || portalData.destination || "Unearthed";
+        const tripName        = portalData.portal_title || portalData.destination || "Pacific Discovery";
         const description     = `${tripName} — Payment ${i}`;
 
         // Inline SVG icons keep the markup self-contained — no extra
@@ -3096,10 +3096,10 @@
   // Fallback shown inside the leader-card photo circle when a contact has
   // no expedition_leader_photo configured (or the configured one fails to
   // load). Inline SVG data URI — a generic person silhouette in the
-  // Unearthed earth-tone palette. Self-contained (no external request,
+  // Pacific Discovery earth-tone palette. Self-contained (no external request,
   // no CORS / hotlink concerns) and always renders cleanly inside the
   // circular frame regardless of viewport size.
-  // To swap to a custom image (e.g. a square-cropped Unearthed icon),
+  // To swap to a custom image (e.g. a square-cropped Pacific Discovery icon),
   // replace this constant with the asset URL — the rest of the cascade
   // (object-fit + circular frame) keeps working unchanged.
   const LEADER_PHOTO_FALLBACK_URL =
@@ -3116,7 +3116,7 @@
   //
   // Photo handling, three cascading tiers:
   //   1. If we have a real photoUrl, render it normally.
-  //   2. If we don't, OR if (1) errors out, render the Unearthed logo in
+  //   2. If we don't, OR if (1) errors out, render the Pacific Discovery logo in
   //      the circle with the "is-fallback" modifier (object-fit: contain
   //      and padding, so the wordmark fits inside the circle instead of
   //      being cropped to a slice).
@@ -3653,7 +3653,7 @@
 
   function styleLinksAsButtons() {
     const links = document.querySelectorAll("#content a:not(.event-link):not(.flight-link):not(.payment-btn):not(.payment-amount-link):not(.manual-link):not(.teacher-contact a)");
-    const colors = ["#5b7f9e", "#59a1aa", "#a9a66e", "#d6a380"];
+    const colors = ["#3B5998", "#59a1aa", "#a9a66e", "#d6a380"];
 
     let buttonIndex = 0;
     links.forEach((link) => {
@@ -3712,7 +3712,7 @@
     if (document.getElementById("adminBanner")) return;
     const div = document.createElement("div");
     div.id = "adminBanner";
-    div.style.cssText = "background:#2d6b74; color:white; padding:10px 18px; display:flex; align-items:center; gap:14px; font-size:12px; letter-spacing:1.2px;";
+    div.style.cssText = "background:#55BBD2; color:white; padding:10px 18px; display:flex; align-items:center; gap:14px; font-size:12px; letter-spacing:1.2px;";
     div.innerHTML = `
       <span style="font-weight:600;">ADMIN VIEW</span>
       <span style="opacity:0.85;">You are viewing this trip as an administrator.</span>
@@ -3787,9 +3787,9 @@
     if (isStandalone) return;
 
     if (isIOS) {
-      text.textContent = "Tap the share button at the bottom of your browser, then tap 'Add to Home Screen' to install the Unearthed portal as an app.";
+      text.textContent = "Tap the share button at the bottom of your browser, then tap 'Add to Home Screen' to install the Pacific Discovery portal as an app.";
     } else if (isAndroid) {
-      text.textContent = "Tap the menu button in your browser, then tap 'Add to Home Screen' to install the Unearthed portal as an app.";
+      text.textContent = "Tap the menu button in your browser, then tap 'Add to Home Screen' to install the Pacific Discovery portal as an app.";
     } else {
       return;
     }

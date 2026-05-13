@@ -4,7 +4,7 @@
 //   1. Look up the contact in HubSpot by email.
 //   2. Generate a one-time token, save it (+ expiry) on the contact's
 //      portal_token / portal_token_expiry properties.
-//   3. Send an email directly via Gmail SMTP from info@unearthededucation.org,
+//   3. Send an email directly via Gmail SMTP from info@pacificdiscovery.org,
 //      using a Google App Password. (Previous version used a Zapier webhook;
 //      that path was removed when we moved to direct sending.)
 //
@@ -13,15 +13,15 @@
 //                        on contacts (we read email/firstname and patch
 //                        portal_token / portal_token_expiry).
 //   SMTP_USER          — Gmail / Google Workspace mailbox we send AS.
-//                        Typically "info@unearthededucation.org".
+//                        Typically "info@pacificdiscovery.org".
 //   SMTP_PASS          — App Password (NOT the account's real password).
 //                        Generated at https://myaccount.google.com/apppasswords
 //                        with 2-Step Verification enabled on the account.
 //
 // Optional:
-//   SMTP_FROM_NAME     — Sender display name. Defaults to "Unearthed Education".
+//   SMTP_FROM_NAME     — Sender display name. Defaults to "Pacific Discovery".
 //   PORTAL_BASE_URL    — Base URL the magic link points to. Defaults to
-//                        https://portal.unearthededucation.org. Useful for
+//                        https://portal.pacificdiscovery.org. Useful for
 //                        testing on Netlify deploy previews.
 //
 // Sending limits worth knowing about:
@@ -135,16 +135,16 @@ export async function handler(event) {
     }
 
     // 4. Build link + send email.
-    const baseUrl   = (process.env.PORTAL_BASE_URL || "https://portal.unearthededucation.org").replace(/\/+$/, "");
+    const baseUrl   = (process.env.PORTAL_BASE_URL || "https://portal.pacificdiscovery.org").replace(/\/+$/, "");
     const link      = `${baseUrl}/set-password.html?token=${token}&email=${encodeURIComponent(cleanEmail)}`;
     const firstName = contact.properties?.firstname || "there";
-    const fromName  = process.env.SMTP_FROM_NAME || "Unearthed Education";
+    const fromName  = process.env.SMTP_FROM_NAME || "Pacific Discovery";
 
     try {
       const info = await getTransporter().sendMail({
         from: `"${fromName}" <${process.env.SMTP_USER}>`,
         to: cleanEmail,
-        subject: "Set your Unearthed Portal password",
+        subject: "Set your Pacific Discovery Student Portal password",
         text: buildPlainText(firstName, link),
         html: buildHtml(firstName, link),
       });
@@ -187,13 +187,13 @@ function buildPlainText(firstName, link) {
   return [
     `Hi ${firstName},`,
     ``,
-    `Tap the link below to set your password for the Unearthed Education parent portal.`,
+    `Tap the link below to set your password for the Pacific Discovery student portal.`,
     ``,
     link,
     ``,
     `This link expires in 1 hour. If you didn't request it, you can ignore this email.`,
     ``,
-    `— Unearthed Education`,
+    `— Pacific Discovery`,
   ].join("\n");
 }
 
@@ -208,26 +208,26 @@ function buildHtml(firstName, link) {
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>
-<body style="margin:0; padding:0; background:#f5f1e6; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif; color:#231f20;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f1e6;">
+<body style="margin:0; padding:0; background:#f8f8f8; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif; color:#212121;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8f8f8;">
     <tr><td align="center" style="padding:32px 16px;">
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px; width:100%; background:#ffffff; border:1px solid #e2decf;">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px; width:100%; background:#ffffff; border:1px solid #e5e7eb;">
         <tr><td style="padding:32px 32px 8px;">
-          <div style="font-size:11px; letter-spacing:1.5px; color:#999; font-weight:600;">UNEARTHED EDUCATION</div>
-          <h1 style="margin:12px 0 0; font-size:22px; font-weight:600; color:#231f20;">Set your portal password</h1>
+          <div style="font-size:11px; letter-spacing:1.5px; color:#999; font-weight:600;">PACIFIC DISCOVERY</div>
+          <h1 style="margin:12px 0 0; font-size:22px; font-weight:600; color:#212121;">Set your portal password</h1>
         </td></tr>
         <tr><td style="padding:16px 32px 8px; font-size:14px; line-height:1.6; color:#444;">
           <p style="margin:0 0 14px;">Hi ${safeName},</p>
-          <p style="margin:0 0 14px;">Tap the button below to set your password for the Unearthed Education parent portal.</p>
+          <p style="margin:0 0 14px;">Tap the button below to set your password for the Pacific Discovery student portal.</p>
         </td></tr>
         <tr><td align="center" style="padding:8px 32px 24px;">
-          <a href="${safeLink}" style="display:inline-block; padding:14px 28px; background:#5b7f9e; color:#ffffff; text-decoration:none; font-size:13px; font-weight:600; letter-spacing:1.5px; border-radius:4px;">SET PASSWORD</a>
+          <a href="${safeLink}" style="display:inline-block; padding:14px 28px; background:#3B5998; color:#ffffff; text-decoration:none; font-size:13px; font-weight:600; letter-spacing:1.5px; border-radius:4px;">SET PASSWORD</a>
         </td></tr>
         <tr><td style="padding:0 32px 8px; font-size:12px; line-height:1.6; color:#666;">
           <p style="margin:0 0 8px;">If the button doesn't work, copy and paste this link into your browser:</p>
-          <p style="margin:0 0 16px; word-break:break-all;"><a href="${safeLink}" style="color:#5b7f9e;">${safeLink}</a></p>
+          <p style="margin:0 0 16px; word-break:break-all;"><a href="${safeLink}" style="color:#3B5998;">${safeLink}</a></p>
         </td></tr>
-        <tr><td style="padding:0 32px 28px; font-size:12px; line-height:1.6; color:#888; border-top:1px solid #e2decf; padding-top:16px;">
+        <tr><td style="padding:0 32px 28px; font-size:12px; line-height:1.6; color:#888; border-top:1px solid #e5e7eb; padding-top:16px;">
           <p style="margin:14px 0 0;">This link expires in 1 hour. If you didn't request it, you can ignore this email.</p>
         </td></tr>
       </table>

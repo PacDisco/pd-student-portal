@@ -30,7 +30,7 @@
 //   STRIPE_DIRECT_DEBIT_METHODS    comma-separated Stripe payment_method_types
 //                                  for the no-fee path. Defaults to
 //                                  "nz_bank_account" (NZ BECS Direct Debit) —
-//                                  matches Unearthed's NZD currency and a
+//                                  matches Pacific Discovery's NZD currency and a
 //                                  Stripe account that has "NZ BECS Direct
 //                                  Debit" enabled in Settings → Payment
 //                                  methods. Override if your account has
@@ -103,7 +103,7 @@ export async function handler(event) {
     if (paymentType === "card") {
       paymentMethodTypes = ["card"];
     } else {
-      // Default to NZ BECS Direct Debit since Unearthed bills in NZD.
+      // Default to NZ BECS Direct Debit since Pacific Discovery bills in NZD.
       // Override via STRIPE_DIRECT_DEBIT_METHODS if your account has
       // additional bank-debit methods enabled (or if Stripe renames the
       // identifier — they've shifted naming across regions over time).
@@ -127,7 +127,7 @@ export async function handler(event) {
     const origin =
       event.headers?.origin ||
       event.headers?.referer?.split("/").slice(0, 3).join("/") ||
-      "https://portal.unearthededucation.org";
+      "https://portal.pacificdiscovery.org";
 
     const currency = (process.env.STRIPE_CURRENCY || "nzd").toLowerCase();
     const unitAmountCents = Math.round(charge * 100);
@@ -194,7 +194,7 @@ export async function handler(event) {
     // filters, etc.) decide what to do with it.
     params.append("metadata[payment_type]", paymentType);
     params.append("metadata[processing_fee_rate]", paymentType === "card" ? "0.03" : "0");
-    params.append("metadata[source]", "unearthed-portal-row-click");
+    params.append("metadata[source]", "pd-student-portal-row-click");
 
     // Mirror metadata onto the PaymentIntent so it shows on the underlying
     // charge as well (useful for HubSpot's Stripe sync if you have one).
@@ -273,7 +273,7 @@ async function findOrCreateStripeCustomer(email, secretKey) {
   // 2. None found — create one.
   const createParams = new URLSearchParams();
   createParams.append("email", cleanEmail);
-  createParams.append("metadata[source]", "unearthed-portal");
+  createParams.append("metadata[source]", "pd-student-portal");
 
   const createRes = await fetch("https://api.stripe.com/v1/customers", {
     method: "POST",

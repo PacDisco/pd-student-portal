@@ -16,8 +16,8 @@
 //   HUBSPOT_API_KEY                — read+write contacts
 //   SMTP_USER, SMTP_PASS           — Gmail App Password setup (see
 //                                    send-magic-link.js for the docs)
-//   SMTP_FROM_NAME (optional)      — defaults to "Unearthed Education"
-//   PORTAL_BASE_URL (optional)     — defaults to https://portal.unearthededucation.org
+//   SMTP_FROM_NAME (optional)      — defaults to "Pacific Discovery"
+//   PORTAL_BASE_URL (optional)     — defaults to https://portal.pacificdiscovery.org
 
 import crypto from "crypto";
 import nodemailer from "nodemailer";
@@ -158,16 +158,16 @@ export async function handler(event) {
     }
 
     // 4. Email the invite link.
-    const baseUrl = (process.env.PORTAL_BASE_URL || "https://portal.unearthededucation.org").replace(/\/+$/, "");
+    const baseUrl = (process.env.PORTAL_BASE_URL || "https://portal.pacificdiscovery.org").replace(/\/+$/, "");
     const link    = `${baseUrl}/set-password.html?token=${token}&email=${encodeURIComponent(inviteeEmail)}`;
-    const fromName = process.env.SMTP_FROM_NAME || "Unearthed Education";
+    const fromName = process.env.SMTP_FROM_NAME || "Pacific Discovery";
     const greetingName = firstName || invitee.properties?.firstname || "there";
 
     try {
       const info = await getTransporter().sendMail({
         from: `"${fromName}" <${process.env.SMTP_USER}>`,
         to: inviteeEmail,
-        subject: `You're invited to the Unearthed Portal as ${role}`,
+        subject: `You're invited to the Pacific Discovery Student Portal as ${role}`,
         text: buildPlainText(greetingName, role, link),
         html: buildHtml(greetingName, role, link)
       });
@@ -214,14 +214,14 @@ function buildPlainText(name, role, link) {
   return [
     `Hi ${name},`,
     ``,
-    `You've been invited to the Unearthed Education portal as a ${role}.`,
+    `You've been invited to the Pacific Discovery portal as a ${role}.`,
     `Tap the link below to set your password and sign in:`,
     ``,
     link,
     ``,
     `This link expires in 1 hour. If you weren't expecting it, you can ignore this email.`,
     ``,
-    `— Unearthed Education`,
+    `— Pacific Discovery`,
   ].join("\n");
 }
 
@@ -232,26 +232,26 @@ function buildHtml(name, role, link) {
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>
-<body style="margin:0; padding:0; background:#f5f1e6; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif; color:#231f20;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f1e6;">
+<body style="margin:0; padding:0; background:#f8f8f8; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif; color:#212121;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8f8f8;">
     <tr><td align="center" style="padding:32px 16px;">
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px; width:100%; background:#ffffff; border:1px solid #e2decf;">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px; width:100%; background:#ffffff; border:1px solid #e5e7eb;">
         <tr><td style="padding:32px 32px 8px;">
-          <div style="font-size:11px; letter-spacing:1.5px; color:#999; font-weight:600;">UNEARTHED EDUCATION · ADMIN INVITE</div>
-          <h1 style="margin:12px 0 0; font-size:22px; font-weight:600; color:#231f20;">You're invited as ${safeRole}</h1>
+          <div style="font-size:11px; letter-spacing:1.5px; color:#999; font-weight:600;">PACIFIC DISCOVERY · ADMIN INVITE</div>
+          <h1 style="margin:12px 0 0; font-size:22px; font-weight:600; color:#212121;">You're invited as ${safeRole}</h1>
         </td></tr>
         <tr><td style="padding:16px 32px 8px; font-size:14px; line-height:1.6; color:#444;">
           <p style="margin:0 0 14px;">Hi ${safeName},</p>
-          <p style="margin:0 0 14px;">You've been added to the Unearthed Education portal as a <strong>${safeRole}</strong>. Tap the button below to set your password and sign in.</p>
+          <p style="margin:0 0 14px;">You've been added to the Pacific Discovery portal as a <strong>${safeRole}</strong>. Tap the button below to set your password and sign in.</p>
         </td></tr>
         <tr><td align="center" style="padding:8px 32px 24px;">
-          <a href="${safeLink}" style="display:inline-block; padding:14px 28px; background:#2d6b74; color:#ffffff; text-decoration:none; font-size:13px; font-weight:600; letter-spacing:1.5px; border-radius:4px;">SET PASSWORD &amp; SIGN IN</a>
+          <a href="${safeLink}" style="display:inline-block; padding:14px 28px; background:#55BBD2; color:#ffffff; text-decoration:none; font-size:13px; font-weight:600; letter-spacing:1.5px; border-radius:4px;">SET PASSWORD &amp; SIGN IN</a>
         </td></tr>
         <tr><td style="padding:0 32px 8px; font-size:12px; line-height:1.6; color:#666;">
           <p style="margin:0 0 8px;">If the button doesn't work, copy and paste this link into your browser:</p>
-          <p style="margin:0 0 16px; word-break:break-all;"><a href="${safeLink}" style="color:#2d6b74;">${safeLink}</a></p>
+          <p style="margin:0 0 16px; word-break:break-all;"><a href="${safeLink}" style="color:#55BBD2;">${safeLink}</a></p>
         </td></tr>
-        <tr><td style="padding:0 32px 28px; font-size:12px; line-height:1.6; color:#888; border-top:1px solid #e2decf; padding-top:16px;">
+        <tr><td style="padding:0 32px 28px; font-size:12px; line-height:1.6; color:#888; border-top:1px solid #e5e7eb; padding-top:16px;">
           <p style="margin:14px 0 0;">This link expires in 1 hour. If you weren't expecting this invite, you can ignore the email.</p>
         </td></tr>
       </table>

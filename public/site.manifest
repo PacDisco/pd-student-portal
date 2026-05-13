@@ -1,10 +1,10 @@
 {
-  "name": "Unearthed Portal",
-  "short_name": "Unearthed",
+  "name": "Pacific Discovery Student Portal",
+  "short_name": "Pacific Discovery",
   "start_url": "/login.html"
   "display": "standalone",
-  "background_color": "#f9f8f2",
-  "theme_color": "#2d6b74",
+  "background_color": "#f8f8f8",
+  "theme_color": "#55BBD2",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",

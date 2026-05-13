@@ -2,16 +2,16 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Unearthed Portal — Login</title>
+  <title>Pacific Discovery Student Portal — Login</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
-  <meta name="theme-color" content="#2d6b74">
+  <meta name="theme-color" content="#55BBD2">
   <style>
     body {
       margin: 0;
       font-family: 'Inter', sans-serif;
-      background: #f9f8f2;
-      color: #231f20;
+      background: #f8f8f8;
+      color: #212121;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
@@ -19,7 +19,7 @@
     header {
       text-align: center;
       padding: 30px 20px 24px;
-      background: #2d6b74;
+      background: #55BBD2;
       color: white;
     }
     header img {
@@ -42,7 +42,7 @@
     }
     .box {
       background: white;
-      border: 1px solid #e2decf;
+      border: 1px solid #e5e7eb;
       padding: 40px;
       width: 100%;
       max-width: 400px;
@@ -66,11 +66,11 @@
       width: 100%;
       padding: 12px 16px;
       margin-bottom: 20px;
-      border: 1px solid #e2decf;
+      border: 1px solid #e5e7eb;
       font-family: 'Inter', sans-serif;
       font-size: 14px;
-      background: #f9f8f2;
-      color: #231f20;
+      background: #f8f8f8;
+      color: #212121;
       box-sizing: border-box;
     }
     input:focus {
@@ -80,7 +80,7 @@
     button {
       width: 100%;
       padding: 14px;
-      background: #2d6b74;
+      background: #55BBD2;
       color: white;
       border: none;
       font-family: 'Inter', sans-serif;
@@ -94,8 +94,8 @@
     button:hover { opacity: 0.85; }
     .secondary {
       background: transparent;
-      color: #2d6b74;
-      border: 1px solid #2d6b74;
+      color: #55BBD2;
+      border: 1px solid #55BBD2;
       margin-bottom: 0;
     }
     .message {
@@ -106,7 +106,7 @@
       text-align: center;
     }
     .message.error { background: #fdf0ef; color: #c0392b; }
-    .message.success { background: #f0f7f4; color: #2d6b74; }
+    .message.success { background: #f0f7f4; color: #55BBD2; }
     .divider {
       text-align: center;
       font-size: 11px;
@@ -121,7 +121,7 @@
 </head>
 <body>
 <header>
-  <img src="/Logo-Landscape-Beige.png" alt="Unearthed Education">
+  <img src="/pacific-discovery-logo.png" alt="Pacific Discovery">
   <p>STUDENT PORTAL</p>
 </header>
 
@@ -139,7 +139,7 @@
       <div class="divider">OR, IF YOU'VE NEVER LOGGED IN BEFORE</div>
       <button class="secondary" onclick="showMagicLink()">SEND MAGIC LINK</button>
       <p style="text-align:center; font-size:12px; margin-top:16px;">
-        <a href="#" onclick="showForgot()" style="color:#2d6b74;">Forgot password?</a>
+        <a href="#" onclick="showForgot()" style="color:#55BBD2;">Forgot password?</a>
       </p>
       <div class="message error" id="loginError"></div>
     </div>

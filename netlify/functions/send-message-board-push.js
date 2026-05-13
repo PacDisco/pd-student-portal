@@ -25,7 +25,7 @@
 //   HUBSPOT_API_KEY        read+write contacts
 //   VAPID_PUBLIC_KEY       generated locally (npx web-push generate-vapid-keys)
 //   VAPID_PRIVATE_KEY      "
-//   VAPID_SUBJECT          mailto:info@unearthededucation.org
+//   VAPID_SUBJECT          mailto:info@pacificdiscovery.org
 //
 // Optional:
 //   WEBHOOK_SHARED_SECRET  shared secret to validate webhook origin
