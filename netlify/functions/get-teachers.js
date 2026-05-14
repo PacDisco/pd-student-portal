@@ -1,8 +1,10 @@
 // Returns the contacts associated to a portal, split into:
 //   - teachers     — contacts with the "Teacher" association label, with
 //                    full contact details (name/email/phone).
-//   - tripLeaders  — contacts with the "Trip Leader" association label,
+//   - tripLeaders  — contacts with the "Instructor" association label,
 //                    with name + trip_leader_bio (custom contact property).
+//                    Variable name kept as `tripLeaders` for historical
+//                    reasons; semantically these are now Instructors.
 //
 // Both lists feed the "SCHOOL CONTACTS" section on the portal so parents
 // see who's accompanying the trip and a short bio of each trip leader.
@@ -49,7 +51,7 @@ export async function handler(event) {
       .map(r => r.toObjectId);
 
     const tripLeaderIds = results
-      .filter(r => r.associationTypes?.some(t => t.label === "Trip Leader"))
+      .filter(r => r.associationTypes?.some(t => t.label === "Instructor"))
       .map(r => r.toObjectId);
 
     // 3. Fetch contact records for each bucket in parallel.

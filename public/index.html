@@ -3144,13 +3144,13 @@
         });
       });
 
-      // Expedition leaders (HubSpot association label "Trip Leader") — name +
+      // Instructors (HubSpot association label "Instructor") — name +
       // bio only (no email/phone exposed in the parent-facing view).
       tripLeaders.forEach(l => {
         const bioHtml = l.bio ? applyTextBreaks(l.bio) : "";
         grid.innerHTML += renderLeaderCard({
           variant: "expedition-leader",
-          roleLabel: "EXPEDITION LEADER",
+          roleLabel: "INSTRUCTOR",
           name: l.name,
           photoUrl: l.photoUrl,
           contactHtml: "",
@@ -3760,14 +3760,16 @@
 
   function applyVisibility(labels = []) {
     console.log("LABELS:", labels);
-    console.log("TRIP LEADER CHECK:", labels.includes("Trip Leader"));
+    console.log("INSTRUCTOR CHECK:", labels.includes("Instructor"));
     console.log("RAW LABELS JSON:", JSON.stringify(labels));
 
     if (!labels.includes("Parent") && !labels.includes("Student")) {
       document.getElementById("familyTile").style.display = "none";
     }
 
-    if (!labels.includes("Trip Leader")) {
+    // The leader-resources tile is reserved for contacts associated to the
+    // program with the "Instructor" label (was previously "Trip Leader").
+    if (!labels.includes("Instructor")) {
       document.getElementById("tripLeaderTile").style.display = "none";
     }
 

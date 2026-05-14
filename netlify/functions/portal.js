@@ -33,8 +33,12 @@ export async function handler(event) {
 
     // Manual overrides for paired labels where HubSpot returns null
     // Add new paired labels here as needed: typeId -> label name
+    // NOTE: typeId 28 was the Unearthed object's "Trip Leader" pairing.
+    // The new Pacific Discovery custom object (2-58411705) likely uses a
+    // different typeId for the "Instructor" pairing — check HubSpot if
+    // the override doesn't seem to be firing for instructors.
     const pairedLabelOverrides = {
-      28: "Trip Leader"
+      28: "Instructor"
     };
 
     // ----- Resolve portalId + tab-visibility labels -----
@@ -53,7 +57,7 @@ export async function handler(event) {
       portalId = String(adminPortalId);
       // Returning every plausible label so applyVisibility() in the
       // frontend keeps every tab on for admin viewing.
-      labels = ["Parent", "Student", "Teacher", "Trip Leader"];
+      labels = ["Parent", "Student", "Teacher", "Instructor"];
     } else {
       // Path A: contact-association lookup.
       const contactRes = await fetch(
