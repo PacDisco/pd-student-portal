@@ -1169,11 +1169,29 @@
 
     .payment-actions {
       display: flex;
-      flex-direction: column;
+      flex-wrap: wrap;
       gap: 10px;
       max-width: 720px;
       margin-bottom: 20px;
     }
+    /* Two-button layout (default) — each button shares the row equally. */
+    .payment-actions .payment-action-btn {
+      flex: 1 1 240px;
+    }
+    /* Single-button layout — compact + right-aligned, sized similarly to
+       the orange "PAY NOW" button in the summary card so the visual
+       hierarchy reads as a secondary action. */
+    .payment-actions--single {
+      justify-content: flex-end;
+    }
+    .payment-actions--single .payment-action-btn {
+      flex: 0 0 auto;
+      padding: 8px 14px;
+      font-size: 13px;
+      min-width: 220px;
+    }
+    .payment-actions--single .payment-action-amount { font-size: 14px; }
+    .payment-actions--single .payment-action-base { font-size: 9px; }
     .payment-action-btn {
       display: flex;
       justify-content: space-between;
@@ -2793,29 +2811,24 @@
     const tripName   = portalData.program_name || portalData.portal_title || portalData.destination || "Pacific Discovery";
 
     // ---- Tier logic ----
-    // < $250 paid        → APP FEE ($250), DEPOSIT ($2,250), FULL ($dealAmount)
-    // $250–$2,499 paid   → DEPOSIT remaining (to $2,500), REMAINING balance
-    // ≥ $2,500 paid      → REMAINING balance only
+    // The orange "PAY NOW" button in the AMOUNT DUE summary already covers
+    // the "pay the whole outstanding balance" case, so we no longer render
+    // a redundant blue full-amount/remaining-balance button here.
+    //
+    // < $250 paid        → APP FEE ($250), DEPOSIT ($2,250)      [side by side]
+    // $250–$2,499 paid   → DEPOSIT remaining (to $2,500)         [single, right-aligned]
+    // ≥ $2,500 paid      → no tier buttons (PAY NOW alone handles it)
     const buttons = [];
     if (totalPaid < APP_FEE) {
       buttons.push({ label: "PAY APPLICATION FEE", base: APP_FEE, desc: "Application Fee" });
       buttons.push({ label: "PAY DEPOSIT",         base: DEPOSIT_TOTAL - APP_FEE, desc: "Deposit" });
-      if (dealAmount > 0) {
-        buttons.push({ label: "PAY FULL AMOUNT",   base: dealAmount, desc: "Full Amount" });
-      }
     } else if (totalPaid < DEPOSIT_TOTAL) {
       const depositRemaining = DEPOSIT_TOTAL - totalPaid;
       if (depositRemaining > 0) {
         buttons.push({ label: "PAY REMAINING DEPOSIT", base: depositRemaining, desc: "Remaining Deposit" });
       }
-      if (amountDue > 0) {
-        buttons.push({ label: "PAY REMAINING BALANCE", base: amountDue, desc: "Remaining Balance" });
-      }
-    } else {
-      if (amountDue > 0) {
-        buttons.push({ label: "PAY REMAINING BALANCE", base: amountDue, desc: "Remaining Balance" });
-      }
     }
+    // tier 3 (≥ $2,500 paid) intentionally renders no tier buttons.
 
     // Render each tier button. Each one carries the data-* attrs that
     // startCheckout() reads to POST /create-checkout-session.
@@ -2918,7 +2931,11 @@
     }
 
     const infoHtml = paymentsInfo ? `<div class="payments-header">${paymentsInfo}</div>` : "";
-    const actionsHtml = buttonHtml ? `<div class="payment-actions">${buttonHtml}</div>` : "";
+    // Layout adapts to button count: 2 → side-by-side, 1 → small right-aligned.
+    const actionsClass = buttons.length === 1
+      ? "payment-actions payment-actions--single"
+      : "payment-actions";
+    const actionsHtml = buttonHtml ? `<div class="${actionsClass}">${buttonHtml}</div>` : "";
 
     return `
       ${infoHtml}
