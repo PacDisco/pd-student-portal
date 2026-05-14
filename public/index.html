@@ -2229,16 +2229,42 @@
         }
       });
       safeRun("set title",         () => {
-        document.getElementById("title").innerText = portalData.portal_title || "PACIFIC DISCOVERY";
+        // New schema: program_name. Fall back to legacy portal_title
+        // for records that haven't been migrated yet.
+        document.getElementById("title").innerText =
+          portalData.program_name || portalData.portal_title || "PACIFIC DISCOVERY";
       });
-      safeRun("set destination",   () => {
-        document.getElementById("destination").innerText =
-          portalData.destination ? `DESTINATION: ${portalData.destination}` : "STUDENT PORTAL";
+      safeRun("set dates",         () => {
+        // New schema: show formatted date range from program_start_date +
+        // program_end_date. Falls back to legacy `destination` string if
+        // dates aren't set, then to the default "STUDENT PORTAL" label.
+        const fmtDate = (v) => {
+          if (!v) return null;
+          const d = new Date(v);
+          if (isNaN(d.getTime())) return null;
+          return d.toLocaleDateString("en-NZ", { year: "numeric", month: "short", day: "numeric" });
+        };
+        const start = fmtDate(portalData.program_start_date);
+        const end   = fmtDate(portalData.program_end_date);
+        let dateLabel = "";
+        if (start && end)      dateLabel = `${start} – ${end}`;
+        else if (start || end) dateLabel = start || end;
+
+        const destEl = document.getElementById("destination");
+        if (dateLabel) {
+          destEl.innerText = `DATES: ${dateLabel}`;
+        } else if (portalData.destination) {
+          destEl.innerText = `DESTINATION: ${portalData.destination}`;
+        } else {
+          destEl.innerText = "STUDENT PORTAL";
+        }
       });
-      safeRun("set price",         () => {
-        if (portalData.price) {
+      safeRun("set tuition",       () => {
+        // New schema: program_tuition. Legacy fallback: price.
+        const amount = portalData.program_tuition || portalData.price;
+        if (amount) {
           document.getElementById("programPrice").innerText =
-            `PRICE: $${parseFloat(portalData.price).toLocaleString()}`;
+            `TUITION: $${parseFloat(amount).toLocaleString()}`;
         }
       });
       safeRun("applyVisibility",        () => applyVisibility(portalData.labels));
@@ -2313,16 +2339,38 @@
         : "";
     }
 
+    // Returns true if the event date has already passed (relative to now).
+    // Used to hide the live "meeting link" button after the meeting/webinar.
+    // Treats unparseable or empty dates as NOT passed (so the link still
+    // shows — admins haven't set the date yet).
+    function isDatePassed(val) {
+      if (!val) return false;
+      const d = new Date(val);
+      if (isNaN(d.getTime())) return false;
+      return d.getTime() < Date.now();
+    }
+
     const events = [
-      // "Quick Links" replaces the old single-button itinerary card.
-      // Renders the itinerary URL and a button to open the user's own
-      // Jotform application for editing (lazy-fetched on click).
-      { title: "QUICK LINKS", isQuickLinks: true, itineraryUrl: p.itinerary },
-      { title: "INITIAL PLANNING MEETING", date: p.initial_planning_meeting, info: p.initial_planning_meeting_information },
-      { title: "TRAINING EVENT", date: p.training_event, info: p.training_event_information },
-      { title: "FINAL BRIEFING", date: p.final_briefing, info: p.final_briefing_information },
-      { title: "BUILD-UP DAY", date: p.buildup_day, info: p.buildup_day_information },
-      { title: "RE-ENTRY WORKSHOP", date: p.reentry_workshop, info: p.reentry_workshop_information }
+      // "Quick Links" — itinerary URL + Edit Application button (lazy-fetches
+      // the user's Jotform submission id on click).
+      { title: "QUICK LINKS", isQuickLinks: true, itineraryUrl: p.program_itinerary },
+      // Information Sessions — date + (pre-event) live meeting link + recording.
+      // The meeting link hides automatically once the date has passed.
+      {
+        title: "INFORMATION SESSIONS",
+        isMeetingCard: true,
+        date: p.information_session,
+        meetingLink: p.information_session_meeting_link,
+        recordingUrl: p.information_session_recording
+      },
+      // Pre-Departure Webinar — same structure.
+      {
+        title: "PRE-DEPARTURE WEBINAR",
+        isMeetingCard: true,
+        date: p.predeparture_webinar_date,
+        meetingLink: p.predeparture_webinar_link,
+        recordingUrl: p.predeparture_webinar_recording
+      }
     ];
 
     const grid = events.map(e => {
@@ -2348,6 +2396,31 @@
               <div class="quick-link-row-label">YOUR APPLICATION</div>
               ${editAppHtml}
             </div>
+          </div>`;
+      }
+      if (e.isMeetingCard) {
+        const passed = isDatePassed(e.date);
+        // Live meeting link only shows BEFORE the event date.
+        const meetingLinkHtml = (!passed && e.meetingLink)
+          ? `<div class="quick-link-row">
+              <div class="quick-link-row-label">MEETING LINK</div>
+              <a href="${e.meetingLink}" target="_blank" class="event-link">JOIN MEETING</a>
+            </div>`
+          : "";
+        // Recording shows whenever the URL is populated (typically uploaded
+        // after the event runs).
+        const recordingHtml = e.recordingUrl
+          ? `<div class="quick-link-row">
+              <div class="quick-link-row-label">RECORDING</div>
+              <a href="${e.recordingUrl}" target="_blank" class="event-link">WATCH RECORDING</a>
+            </div>`
+          : "";
+        return `
+          <div class="expedition-card quick-links-card">
+            <h4>${e.title}</h4>
+            <div class="event-date">${formatDate(e.date)}</div>
+            ${meetingLinkHtml}
+            ${recordingHtml}
           </div>`;
       }
       return `
@@ -2602,7 +2675,7 @@
         const debitChargeText = fmtMoney(baseNum);
         const baseText        = fmtMoney(baseNum);
         const fallbackLink    = buildPaymentLink(i, baseNum, chargeNum);
-        const tripName        = portalData.portal_title || portalData.destination || "Pacific Discovery";
+        const tripName        = portalData.program_name || portalData.portal_title || portalData.destination || "Pacific Discovery";
         const description     = `${tripName} — Payment ${i}`;
 
         // Inline SVG icons keep the markup self-contained — no extra

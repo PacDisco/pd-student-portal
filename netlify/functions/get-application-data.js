@@ -6,9 +6,8 @@
 // Inputs (querystring):
 //   email   — the contact email to look up (required)
 //   formId  — comma-separated Jotform form ID(s); defaults to env
-//             JOTFORM_APPLICATION_FORM_ID, else
-//             "251396787451873,253477140703050,260388618557066" (the original application
-//             form + the newer version some students use).
+//             JOTFORM_APPLICATION_FORM_ID, else "240277257210046"
+//             (Pacific Discovery's current application form).
 //
 // Required env var: JOTFORM_API_KEY
 // Optional env var: JOTFORM_BASE_URL  (default https://api.jotform.com)
@@ -18,7 +17,7 @@
 //                   don't drop out of the lookup.
 
 const DEFAULT_FORM_IDS = (process.env.JOTFORM_APPLICATION_FORM_ID
-  || "251396787451873,253477140703050,260388618557066")
+  || "240277257210046")
   .split(",").map(s => s.trim()).filter(Boolean);
 
 export async function handler(event) {

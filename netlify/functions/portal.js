@@ -194,7 +194,10 @@ export async function handler(event) {
     // HOW_TO_ADD_FIELDS.md in the project root for a step-by-step guide.
     // ============================================================
     const PORTAL_PROPERTIES = [
-      // Core trip metadata
+      // Core program metadata (new schema)
+      "program_name", "program_start_date", "program_end_date", "program_tuition",
+      // Legacy program metadata — kept for graceful fallback on records
+      // that haven't been migrated to the new schema yet.
       "portal_title", "destination", "price",
       // Tab content (rich text)
       "trip_information_content", "destination_overview_content",
@@ -204,8 +207,17 @@ export async function handler(event) {
       "faqs", "hs_object_id",
       // Payment form URLs
       "payments_form_url", "payment_form_url",
-      // Schedule / itinerary
-      "itinerary",
+      // Schedule / itinerary (program_itinerary is the new field; itinerary
+      // is the legacy one kept for fallback).
+      "program_itinerary", "itinerary",
+      // Expedition Overview cards (new schema): Information Sessions +
+      // Pre-Departure Webinar. Each has a date and 2 URL fields (live link +
+      // recording). The live link auto-hides in the UI once the date passes.
+      "information_session", "information_session_meeting_link", "information_session_recording",
+      "predeparture_webinar_date", "predeparture_webinar_link", "predeparture_webinar_recording",
+      // Legacy schedule fields — still fetched for fallback in case the
+      // record references them elsewhere; the old overview cards that used
+      // them have been removed from the UI.
       "initial_planning_meeting", "initial_planning_meeting_information",
       "training_event", "training_event_information",
       "final_briefing", "final_briefing_information",
@@ -327,11 +339,32 @@ export async function handler(event) {
 }
 
 // Batch-reads minimal metadata for the multi-portal trip picker: enough
-// for the user-facing card (title, destination, optional price). Used
-// when an `email`-authenticated user has 2+ associated portals and we
-// need to surface them on /my-trips.html.
+// for the user-facing card (title, date-range or destination, optional
+// tuition/price). Used when an `email`-authenticated user has 2+
+// associated portals and we need to surface them on /my-trips.html.
+//
+// Reads both the new program_* fields and the legacy portal_title /
+// destination / price for migration-safe fallback. The returned shape
+// keeps the legacy {title, destination, price} keys so my-trips.html
+// doesn't have to change — `destination` is populated with a formatted
+// date range when program_start_date / program_end_date are set, or
+// the legacy `destination` string otherwise.
 async function fetchPortalCards(portalIds, OBJECT, headers) {
   if (!portalIds || portalIds.length === 0) return [];
+
+  function formatDateRange(start, end) {
+    const fmt = (v) => {
+      if (!v) return null;
+      const d = new Date(v);
+      if (isNaN(d.getTime())) return null;
+      return d.toLocaleDateString("en-NZ", { year: "numeric", month: "short", day: "numeric" });
+    };
+    const s = fmt(start);
+    const e = fmt(end);
+    if (s && e) return `${s} – ${e}`;
+    return s || e || "";
+  }
+
   try {
     const res = await fetch(
       `https://api.hubapi.com/crm/v3/objects/${OBJECT}/batch/read`,
@@ -340,7 +373,12 @@ async function fetchPortalCards(portalIds, OBJECT, headers) {
         headers,
         body: JSON.stringify({
           inputs: portalIds.map(id => ({ id: String(id) })),
-          properties: ["portal_title", "destination", "price"]
+          properties: [
+            // New schema
+            "program_name", "program_start_date", "program_end_date", "program_tuition",
+            // Legacy fallback
+            "portal_title", "destination", "price"
+          ]
         })
       }
     );
@@ -349,12 +387,16 @@ async function fetchPortalCards(portalIds, OBJECT, headers) {
       return portalIds.map(id => ({ id, title: "(unknown trip)", destination: "", price: null }));
     }
     const data = await res.json();
-    return (data.results || []).map(r => ({
-      id: String(r.id),
-      title: r.properties?.portal_title || "(untitled trip)",
-      destination: r.properties?.destination || "",
-      price: r.properties?.price || null
-    })).sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+    return (data.results || []).map(r => {
+      const props = r.properties || {};
+      const dateRange = formatDateRange(props.program_start_date, props.program_end_date);
+      return {
+        id: String(r.id),
+        title: props.program_name || props.portal_title || "(untitled trip)",
+        destination: dateRange || props.destination || "",
+        price: props.program_tuition || props.price || null
+      };
+    }).sort((a, b) => (a.title || "").localeCompare(b.title || ""));
   } catch (err) {
     console.warn("[portal] picker batch read threw:", err?.message || err);
     return portalIds.map(id => ({ id, title: "(unknown trip)", destination: "", price: null }));

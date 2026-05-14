@@ -97,17 +97,22 @@ export async function handler(event) {
       "Content-Type": "application/json"
     };
 
-    // Look up the trip's portal_title so the notification can read
+    // Look up the trip's program name so the notification can read
     // "Lincoln High School 2026" rather than the generic default.
+    // Prefers the new program_name field; falls back to legacy
+    // portal_title / destination on un-migrated records.
     let tripTitle = "your expedition";
     try {
       const portalRes = await fetch(
-        `https://api.hubapi.com/crm/v3/objects/${PORTAL_OBJECT_ID}/${encodeURIComponent(portalId)}?properties=portal_title,destination`,
+        `https://api.hubapi.com/crm/v3/objects/${PORTAL_OBJECT_ID}/${encodeURIComponent(portalId)}?properties=program_name,portal_title,destination`,
         { headers }
       );
       if (portalRes.ok) {
         const portal = await portalRes.json();
-        tripTitle = portal.properties?.portal_title || portal.properties?.destination || tripTitle;
+        tripTitle = portal.properties?.program_name
+          || portal.properties?.portal_title
+          || portal.properties?.destination
+          || tripTitle;
       }
     } catch (_) { /* non-fatal */ }
 

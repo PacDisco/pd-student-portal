@@ -88,7 +88,9 @@ export async function handler(event) {
     for (let page = 0; page < 5; page++) {
       const qs = new URLSearchParams({
         limit: "100",
-        properties: "portal_title,destination,price,hs_object_id"
+        // Request both new (program_*) and legacy properties so the admin
+        // trip-picker can fall back gracefully on un-migrated records.
+        properties: "program_name,program_start_date,program_end_date,program_tuition,portal_title,destination,price,hs_object_id"
       });
       if (after) qs.set("after", after);
 
@@ -108,11 +110,25 @@ export async function handler(event) {
       for (const r of listData.results || []) {
         // Skip the global defaults record — it's not a real trip.
         if (String(r.id) === GLOBAL_PORTAL_ID) continue;
+        // Compute a date-range label from new program_start/end_date,
+        // falling back to the legacy destination string for the picker
+        // card's secondary line.
+        const props = r.properties || {};
+        const fmt = (v) => {
+          if (!v) return null;
+          const d = new Date(v);
+          if (isNaN(d.getTime())) return null;
+          return d.toLocaleDateString("en-NZ", { year: "numeric", month: "short", day: "numeric" });
+        };
+        const startStr = fmt(props.program_start_date);
+        const endStr   = fmt(props.program_end_date);
+        const dateRange = (startStr && endStr) ? `${startStr} – ${endStr}` : (startStr || endStr || "");
+
         portals.push({
           id: String(r.id),
-          title: r.properties?.portal_title || "(untitled trip)",
-          destination: r.properties?.destination || "",
-          price: r.properties?.price || null,
+          title: props.program_name || props.portal_title || "(untitled trip)",
+          destination: dateRange || props.destination || "",
+          price: props.program_tuition || props.price || null,
           associated: associatedIds.has(String(r.id))
         });
       }
