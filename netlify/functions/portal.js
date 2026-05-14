@@ -213,7 +213,7 @@ export async function handler(event) {
       // Expedition Overview cards (new schema): Information Sessions +
       // Pre-Departure Webinar. Each has a date and 2 URL fields (live link +
       // recording). The live link auto-hides in the UI once the date passes.
-      "information_session", "information_session_meeting_link", "information_session_recording",
+      "information_session", "information_sessions_meeting_link", "information_session_recording",
       "predeparture_webinar_date", "predeparture_webinar_link", "predeparture_webinar_recording",
       // Legacy schedule fields — still fetched for fallback in case the
       // record references them elsewhere; the old overview cards that used
