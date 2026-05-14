@@ -1020,7 +1020,12 @@
     }
     .info-section-body p:first-child { margin-top: 0; }
     .info-section-body p:last-child  { margin-bottom: 0; }
-    .info-section-body a { color: #3B5998; }
+    .info-section-body a {
+      color: #3B5998;
+      text-decoration: underline;
+      word-break: break-word;
+    }
+    .info-section-body a:hover { color: #55BBD2; }
 
     /* FLIGHTS & INSURANCE (legacy — kept in case any other page uses it) */
     .flights-grid {
@@ -2816,10 +2821,12 @@
         // VISAS, FLIGHTS & INSURANCE — three rich-text sections rendered
         // synchronously from portalData. No async insurance link fetch
         // is needed any more; everything lives on the program record.
+        // Intentionally NOT calling styleLinksAsButtons() here — links
+        // inside the rich-text bodies should render as plain hyperlinks,
+        // styled by the `.info-section-body a` CSS rule.
         content.innerHTML = loadFlightsAndInsurance();
         content.style.opacity = 1;
         applyReadMoreClamping(content);
-        styleLinksAsButtons();
         return;
       }
 
