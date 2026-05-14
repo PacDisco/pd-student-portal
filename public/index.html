@@ -1104,6 +1104,217 @@
       margin-bottom: 24px;
     }
 
+    /* ----- New Deal-driven payments view ----- */
+    .payment-summary {
+      background: #f8f8f8;
+      border: 1px solid #e5e7eb;
+      border-top: 4px solid #55BBD2;
+      padding: 18px 24px;
+      margin: 0 0 20px;
+      max-width: 720px;
+    }
+    .payment-summary-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #e5e7eb;
+      gap: 16px;
+    }
+    .payment-summary-row:last-child { border-bottom: none; }
+    .payment-summary-label {
+      font-size: 12px;
+      letter-spacing: 1.2px;
+      font-weight: 600;
+      color: #999;
+    }
+    .payment-summary-value {
+      font-size: 15px;
+      font-weight: 600;
+      color: #212121;
+    }
+    .payment-summary-row--due {
+      padding-top: 14px;
+    }
+    .payment-summary-row--due .payment-summary-label {
+      color: #212121;
+      font-size: 13px;
+    }
+    .payment-summary-row--due .payment-summary-value {
+      color: #f15c39;
+      font-size: 18px;
+    }
+    .payment-summary-due-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 14px;
+      background: #f15c39;
+      color: white !important;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 16px;
+      border-radius: 4px;
+      transition: opacity 0.2s ease;
+    }
+    .payment-summary-due-link:hover { opacity: 0.85; }
+    .payment-summary-due-cta {
+      font-size: 10px;
+      letter-spacing: 1px;
+      font-weight: 600;
+      opacity: 0.9;
+      border-left: 1px solid rgba(255,255,255,0.4);
+      padding-left: 10px;
+    }
+
+    .payment-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-width: 720px;
+      margin-bottom: 20px;
+    }
+    .payment-action-btn {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 20px;
+      background: #55BBD2;
+      color: white !important;
+      text-decoration: none;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 1.2px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: opacity 0.2s ease;
+    }
+    .payment-action-btn:hover { opacity: 0.85; }
+    .payment-action-label { flex: 1; }
+    .payment-action-amount {
+      text-align: right;
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .payment-action-base {
+      display: block;
+      font-size: 10px;
+      font-weight: 400;
+      opacity: 0.85;
+      margin-top: 2px;
+      letter-spacing: 0.5px;
+    }
+
+    .payment-custom {
+      background: #f8f8f8;
+      border: 1px solid #e5e7eb;
+      padding: 16px 20px;
+      margin-bottom: 28px;
+      max-width: 720px;
+    }
+    .payment-custom-label {
+      font-size: 11px;
+      letter-spacing: 1.4px;
+      font-weight: 600;
+      color: #999;
+      margin-bottom: 10px;
+    }
+    .payment-custom-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .payment-custom-prefix {
+      color: #999;
+      font-weight: 600;
+      font-size: 16px;
+    }
+    .payment-custom-input {
+      flex: 1;
+      padding: 10px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      font-size: 14px;
+      font-family: inherit;
+      min-width: 0;
+    }
+    .payment-custom-input:focus {
+      outline: none;
+      border-color: #55BBD2;
+    }
+    .payment-action-btn--secondary {
+      background: #3B5998;
+      padding: 10px 22px;
+      flex: 0 0 auto;
+      justify-content: center;
+    }
+    .payment-custom-note {
+      font-size: 11px;
+      color: #999;
+      margin-top: 8px;
+    }
+
+    .payment-history {
+      margin-top: 32px;
+      max-width: 720px;
+    }
+    .payment-history-label {
+      font-size: 11px;
+      letter-spacing: 1.4px;
+      font-weight: 600;
+      color: #999;
+      margin-bottom: 10px;
+    }
+    .payment-history-rows {
+      border: 1px solid #e5e7eb;
+      background: white;
+    }
+    .payment-history-header,
+    .payment-history-row {
+      display: grid;
+      grid-template-columns: 1fr 2fr 1fr;
+      gap: 12px;
+      padding: 12px 16px;
+      font-size: 13px;
+      align-items: center;
+    }
+    .payment-history-header {
+      background: #f8f8f8;
+      font-size: 10px;
+      letter-spacing: 1px;
+      font-weight: 600;
+      color: #999;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .payment-history-row {
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .payment-history-row:last-child { border-bottom: none; }
+    .payment-history-amount { font-weight: 600; color: #212121; }
+    .payment-history-txn {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 11px;
+      color: #666;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .payment-history-date { color: #666; font-size: 12px; }
+
+    @media (max-width: 600px) {
+      .payment-action-btn { flex-direction: column; align-items: stretch; gap: 6px; }
+      .payment-action-amount { text-align: left; }
+      .payment-history-header,
+      .payment-history-row {
+        grid-template-columns: 1fr 1fr;
+      }
+      .payment-history-header > div:nth-child(2),
+      .payment-history-row .payment-history-txn { display: none; }
+    }
+
     .payment-btn {
       display: inline-block;
       padding: 12px 24px;
@@ -2537,242 +2748,205 @@
       : `<span class="tbc">TBC</span>`;
   }
 
-  async function loadPayments() {
-    const p = portalData;
+  // Threshold + fee constants for the new tier-based payment view.
+  // Adjust here if Pacific Discovery's pricing structure changes.
+  const APP_FEE       = 250;    // Application fee (first milestone)
+  const DEPOSIT_TOTAL = 2500;   // Combined app fee + deposit milestone
+  const SURCHARGE_RATE = 0.035; // 3.5% card processing fee added to every Stripe checkout
 
-    // payment_form_url and payments_information_content are now merged into
-    // portalData by portal.js (trip record overrides global record). So we
-    // can read them directly from portalData; the get-insurance fallback is
-    // only kept as a safety net.
+  function paymentsSurcharge(base) {
+    const n = parseFloat(base);
+    if (!isFinite(n) || n <= 0) return 0;
+    return Math.round(n * (1 + SURCHARGE_RATE) * 100) / 100;
+  }
+
+  function paymentsFmtMoney(n) {
+    return `$${parseFloat(n || 0).toLocaleString("en-NZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+
+  async function loadPayments() {
+    // Pull paid payments + deal metadata. The endpoint already returns
+    // dealAmount (Deal's standard `amount` field) plus a parsed array of
+    // payment entries from payment_1..10. Summing those gives total paid.
     const paidPromise = fetch(`/.netlify/functions/get-paid-payments?email=${encodeURIComponent(email)}`)
       .then(r => r.json())
-      .catch(err => { console.error("Paid payments fetch error:", err); return { payments: [] }; });
+      .catch(err => { console.error("Paid payments fetch error:", err); return { payments: [], dealAmount: null }; });
 
-    // Resolve the payment-form URL.
-    //
-    // The merge in portal.js already overlays trip-record values on top of
-    // the global record, so portalData has the right value for our trip.
-    // We accept either of the two field names HubSpot has carried over the
-    // years (`payment_form_url` and the older `payments_form_url`).
-    //
-    // KEY GUARD: only accept values that actually look like a URL. Some
-    // HubSpot fields end up with placeholder labels like "Payment form url"
-    // sitting in them, which would otherwise be rendered as the href and
-    // produce a broken relative link
-    // (e.g. https://portal.pacificdiscovery.org/Payment%20form%20url).
-    function looksLikeUrl(v) {
-      if (!v) return false;
-      return /^https?:\/\//i.test(String(v).trim());
-    }
-
-    const candidates = {
-      "portalData.payment_form_url":  portalData.payment_form_url,
-      "portalData.payments_form_url": portalData.payments_form_url,
-    };
-    console.log("[loadPayments] payment-form-url candidates:", candidates);
-
-    let paymentFormUrl = null;
-    for (const v of Object.values(candidates)) {
-      if (looksLikeUrl(v)) { paymentFormUrl = String(v).trim(); break; }
-    }
-
+    // Optional rich-text intro from the trip record (merged with the
+    // global record by portal.js). Rendered above the payment summary.
     let paymentsInfo = (portalData.payments_information_content || "").trim();
 
-    // Safety-net fetch from the get-insurance helper if the merged
-    // portalData didn't have anything usable. Still requires the value to
-    // actually look like a URL.
-    if (!paymentFormUrl || !paymentsInfo) {
-      try {
-        const r = await fetch(`/.netlify/functions/get-insurance`);
-        const d = await r.json();
-        if (!paymentFormUrl && looksLikeUrl(d.payment_form_url)) {
-          paymentFormUrl = String(d.payment_form_url).trim();
-        }
-        if (!paymentsInfo && d.payments_information_content) {
-          paymentsInfo = String(d.payments_information_content).trim();
-        }
-      } catch (err) {
-        console.error("Payment global fetch error:", err);
-      }
-    }
-
-    console.log("[loadPayments] paymentFormUrl resolved to:", paymentFormUrl);
-
     const paidData = await paidPromise;
+    const payments = Array.isArray(paidData?.payments) ? paidData.payments : [];
 
-    let btnHtml = "";
-    let infoHtml = "";
-
-    if (paymentsInfo) {
-      infoHtml = `<div class="payments-header">${paymentsInfo}</div>`;
+    // Sum the parsed payment amounts → total paid. Fall back to the Deal's
+    // total_amount_paid property if no parseable payments are returned (e.g.
+    // the user is on a fresh deal where Stripe hasn't pushed anything yet).
+    let totalPaid = payments.reduce((acc, e) => acc + (parseFloat(e.amount) || 0), 0);
+    if (!totalPaid && paidData?.totalAmountPaid != null) {
+      const fallback = parseFloat(paidData.totalAmountPaid);
+      if (isFinite(fallback)) totalPaid = fallback;
     }
 
-    if (paymentFormUrl) {
-      // Some payment-form URLs already contain a query string (e.g. a shared
-      // Stripe-payment-link or HubSpot-page URL with tracking params). Use
-      // "&" as the joiner in that case so we don't produce a malformed URL
-      // like "...?foo=bar?email=jake@…" which silently breaks the email
-      // prefill.
-      const sep = paymentFormUrl.includes("?") ? "&" : "?";
-      btnHtml = `<a href="${paymentFormUrl}${sep}email=${encodeURIComponent(email)}" target="_blank" class="payment-btn">MAKE A PAYMENT &amp; SEE PAYMENT HISTORY</a>`;
-    }
+    const dealAmount = parseFloat(paidData?.dealAmount) || 0;
+    const amountDue  = Math.max(0, dealAmount - totalPaid);
+    const tripName   = portalData.program_name || portalData.portal_title || portalData.destination || "Pacific Discovery";
 
-    // Build a map of paid entries keyed by their schedule row index (1..10).
-    const paidByIndex = {};
-    if (paidData && Array.isArray(paidData.payments)) {
-      paidData.payments.forEach(entry => {
-        if (entry && entry.index) paidByIndex[entry.index] = entry;
-      });
-    }
-
-    // Processing-fee config. The customer covers the card processing fee on top of
-    // the listed installment amount, so what they're actually charged at Stripe is
-    // base * (1 + PROCESSING_FEE_RATE), rounded to 2 decimals.
-    const PROCESSING_FEE_RATE = 0.03; // 3%
-
-    function withProcessingFee(amount) {
-      const n = parseFloat(amount);
-      if (!isFinite(n)) return null;
-      return Math.round(n * (1 + PROCESSING_FEE_RATE) * 100) / 100;
-    }
-
-    function fmtMoney(n) {
-      return `$${parseFloat(n).toLocaleString("en-NZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    }
-
-    // Builds the FALLBACK URL for a specific payment row — used as the
-    // <a href="..."> target only when our /create-checkout-session call
-    // fails for some reason. The actual Stripe Checkout flow doesn't use
-    // this URL: it's driven entirely by the data-* attributes on the
-    // anchor + the startCheckout() handler. So this can return null when
-    // the trip (and global record) have no payment_form_url configured —
-    // we still want the row to be clickable in that case.
-    function buildPaymentLink(i, baseAmount, chargeAmount) {
-      if (!paymentFormUrl) return null;
-      const params = new URLSearchParams();
-      if (email) params.set("email", email);
-      params.set("payment", String(i));
-      if (chargeAmount != null) params.set("amount", String(chargeAmount));
-      if (baseAmount != null) params.set("base_amount", String(baseAmount));
-      params.set("processing_fee_rate", String(PROCESSING_FEE_RATE));
-      // Same query-string-aware concat as the top button uses, so a
-      // payment_form_url that already has params doesn't get clobbered.
-      const sep = paymentFormUrl.includes("?") ? "&" : "?";
-      return `${paymentFormUrl}${sep}${params.toString()}`;
-    }
-
-    // Format a paid entry's "actual amount · paid date" subtitle.
-    function formatPaidDetail(entry) {
-      const parts = [];
-      if (entry.amount != null) {
-        parts.push(fmtMoney(entry.amount));
+    // ---- Tier logic ----
+    // < $250 paid        → APP FEE ($250), DEPOSIT ($2,250), FULL ($dealAmount)
+    // $250–$2,499 paid   → DEPOSIT remaining (to $2,500), REMAINING balance
+    // ≥ $2,500 paid      → REMAINING balance only
+    const buttons = [];
+    if (totalPaid < APP_FEE) {
+      buttons.push({ label: "PAY APPLICATION FEE", base: APP_FEE, desc: "Application Fee" });
+      buttons.push({ label: "PAY DEPOSIT",         base: DEPOSIT_TOTAL - APP_FEE, desc: "Deposit" });
+      if (dealAmount > 0) {
+        buttons.push({ label: "PAY FULL AMOUNT",   base: dealAmount, desc: "Full Amount" });
       }
-      if (entry.dateIso) {
-        const d = new Date(entry.dateIso);
-        if (!isNaN(d.getTime())) {
-          parts.push(d.toLocaleDateString("en-NZ", { year: "numeric", month: "short", day: "numeric" }));
-        }
-      } else if (entry.dateRaw) {
-        parts.push(entry.dateRaw);
+    } else if (totalPaid < DEPOSIT_TOTAL) {
+      const depositRemaining = DEPOSIT_TOTAL - totalPaid;
+      if (depositRemaining > 0) {
+        buttons.push({ label: "PAY REMAINING DEPOSIT", base: depositRemaining, desc: "Remaining Deposit" });
       }
-      return parts.length ? parts.join(" · ") : "Recorded on the deal";
+      if (amountDue > 0) {
+        buttons.push({ label: "PAY REMAINING BALANCE", base: amountDue, desc: "Remaining Balance" });
+      }
+    } else {
+      if (amountDue > 0) {
+        buttons.push({ label: "PAY REMAINING BALANCE", base: amountDue, desc: "Remaining Balance" });
+      }
     }
 
-    // Build payment schedule from associated portal object
-    const rows = [];
-    for (let i = 1; i <= 10; i++) {
-      const date = p[`payment_date_${i}`];
-      const amount = p[`payment_amount_${i}`];
-      if (!date && !amount) continue;
+    // Render each tier button. Each one carries the data-* attrs that
+    // startCheckout() reads to POST /create-checkout-session.
+    const buttonHtml = buttons.map(b => {
+      const charge = paymentsSurcharge(b.base);
+      return `<a href="#"
+        class="payment-action-btn"
+        data-base-amount="${b.base}"
+        data-charge-amount="${charge}"
+        data-description="${attrEsc(`${tripName} — ${b.desc}`)}"
+        data-payment-type="card"
+        onclick="return startCheckout(event, this);">
+        <span class="payment-action-label">${b.label}</span>
+        <span class="payment-action-amount">${paymentsFmtMoney(charge)}<span class="payment-action-base"> (${paymentsFmtMoney(b.base)} + 3.5% fee)</span></span>
+      </a>`;
+    }).join("");
 
-      const formattedDate = formatDateShort(date);
-      const paidEntry = paidByIndex[i] || null;
-
-      const baseNum = amount != null && amount !== "" ? parseFloat(amount) : null;
-      const chargeNum = baseNum != null ? withProcessingFee(baseNum) : null;
-
-      let amountCell;
-      let rowClass = "payment-row";
-
-      if (paidEntry) {
-        // Mark this row paid. Show the actual paid amount + date underneath
-        // the PAID badge; drop the click-to-pay link entirely.
-        rowClass += " paid";
-        amountCell = `<span class="paid-badge">PAID</span>` +
-          `<span class="payment-amount-note">${formatPaidDetail(paidEntry)}</span>`;
-      } else if (chargeNum != null) {
-        // Two payment options per row:
-        //   1. Card with 3% processing fee   (chargeNum = base × 1.03)
-        //   2. Direct debit, no fee          (charges base exactly)
-        // Each is its own clickable button that hits startCheckout()
-        // with a different paymentType, which the backend translates
-        // into different Stripe payment_method_types and amount.
-        const cardChargeText  = fmtMoney(chargeNum);
-        const debitChargeText = fmtMoney(baseNum);
-        const baseText        = fmtMoney(baseNum);
-        const fallbackLink    = buildPaymentLink(i, baseNum, chargeNum);
-        const tripName        = portalData.program_name || portalData.portal_title || portalData.destination || "Pacific Discovery";
-        const description     = `${tripName} — Payment ${i}`;
-
-        // Inline SVG icons keep the markup self-contained — no extra
-        // assets to hot-link. Both use currentColor so they inherit
-        // whatever text color the button is set to.
-        const cardIcon = `<svg class="payment-amount-icon" viewBox="0 0 24 24" width="11" height="11" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><line x1="2" y1="10" x2="22" y2="10" stroke="currentColor" stroke-width="2"/><line x1="6" y1="15" x2="10" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
-        const bankIcon = `<svg class="payment-amount-icon" viewBox="0 0 24 24" width="11" height="11" aria-hidden="true"><polygon points="12,3 22,8 2,8" fill="currentColor"/><rect x="4" y="10" width="2.5" height="8" fill="currentColor"/><rect x="9" y="10" width="2.5" height="8" fill="currentColor"/><rect x="14" y="10" width="2.5" height="8" fill="currentColor"/><rect x="2" y="19" width="20" height="2.2" fill="currentColor"/></svg>`;
-
-        const cardLink = `<a href="${fallbackLink || "#"}"
-              target="_blank" rel="noopener"
-              class="payment-amount-link payment-amount-link--card"
-              title="Pay by card (includes 3% processing fee)"
-              data-payment-index="${i}"
-              data-base-amount="${baseNum}"
-              data-charge-amount="${chargeNum}"
-              data-description="${attrEsc(description)}"
-              data-payment-type="card"
-              onclick="return startCheckout(event, this);"><span class="payment-amount-headline">${cardIcon}<span class="payment-amount-method">CARD</span></span><span class="payment-amount-money">${cardChargeText}</span></a>`;
-
-        const debitLink = `<a href="${fallbackLink || "#"}"
-              target="_blank" rel="noopener"
-              class="payment-amount-link payment-amount-link--debit"
-              title="Pay by bank transfer (no processing fee)"
-              data-payment-index="${i}"
-              data-base-amount="${baseNum}"
-              data-charge-amount="${baseNum}"
-              data-description="${attrEsc(description)}"
-              data-payment-type="direct_debit"
-              onclick="return startCheckout(event, this);"><span class="payment-amount-headline">${bankIcon}<span class="payment-amount-method">BANK TRANSFER</span><span class="payment-amount-badge">NZ ONLY</span><span class="payment-amount-badge payment-amount-badge--good">NO FEE</span></span><span class="payment-amount-money">${debitChargeText}</span></a>`;
-
-        amountCell = `<div class="payment-amount-options">${cardLink}${debitLink}</div>` +
-                     `<span class="payment-amount-note">Base ${baseText} · card +3% fee</span>`;
-      } else {
-        amountCell = '<span class="tbc">TBC</span>';
-      }
-
-      // Row 1 is the deposit — label it as such and don't render a due date.
-      const rowLabel = i === 1 ? "DEPOSIT" : `PAYMENT ${i}`;
-      const dateCell = i === 1 ? "" : (formattedDate || '<span class="tbc">TBC</span>');
-
-      rows.push(`
-        <div class="${rowClass}">
-          <div class="payment-label">${rowLabel}</div>
-          <div class="payment-date">${dateCell}</div>
-          <div class="payment-amount">${amountCell}</div>
+    // ---- Summary header (program total / paid / due) ----
+    // The AMOUNT DUE row is itself a clickable Stripe Checkout link when
+    // there's a non-zero balance — pays the full remaining amount + 3.5%.
+    const dueClickable = amountDue > 0;
+    const dueChargeAmount = dueClickable ? paymentsSurcharge(amountDue) : 0;
+    const summaryHtml = `
+      <div class="payment-summary">
+        <div class="payment-summary-row">
+          <div class="payment-summary-label">PROGRAM TOTAL</div>
+          <div class="payment-summary-value">${dealAmount > 0 ? paymentsFmtMoney(dealAmount) : '<span class="tbc">TBC</span>'}</div>
         </div>
-      `);
+        <div class="payment-summary-row">
+          <div class="payment-summary-label">AMOUNT PAID</div>
+          <div class="payment-summary-value">${paymentsFmtMoney(totalPaid)}</div>
+        </div>
+        <div class="payment-summary-row payment-summary-row--due">
+          <div class="payment-summary-label">AMOUNT DUE</div>
+          ${dueClickable
+            ? `<a href="#" class="payment-summary-due-link"
+                  data-base-amount="${amountDue}"
+                  data-charge-amount="${dueChargeAmount}"
+                  data-description="${attrEsc(`${tripName} — Amount Due`)}"
+                  data-payment-type="card"
+                  onclick="return startCheckout(event, this);"
+                  title="Pay the full outstanding balance (includes 3.5% processing fee)">
+                  ${paymentsFmtMoney(amountDue)}
+                  <span class="payment-summary-due-cta">PAY NOW &rarr;</span>
+                </a>`
+            : `<div class="payment-summary-value">${paymentsFmtMoney(0)}</div>`}
+        </div>
+      </div>
+    `;
+
+    // ---- Custom-amount input ----
+    const customAmountHtml = `
+      <div class="payment-custom">
+        <div class="payment-custom-label">OR PAY A CUSTOM AMOUNT</div>
+        <div class="payment-custom-row">
+          <span class="payment-custom-prefix">$</span>
+          <input type="number" id="customPayAmount" class="payment-custom-input"
+            min="1" step="0.01" placeholder="Enter amount" inputmode="decimal">
+          <button type="button" class="payment-action-btn payment-action-btn--secondary"
+            onclick="return startCustomCheckout(event, this);">PAY</button>
+        </div>
+        <div class="payment-custom-note">3.5% processing fee will be added at checkout.</div>
+      </div>
+    `;
+
+    // ---- Payment history table ----
+    let historyHtml = "";
+    if (payments.length > 0) {
+      const historyRows = payments
+        .slice()
+        .sort((a, b) => {
+          const da = a.dateIso ? new Date(a.dateIso).getTime() : 0;
+          const db = b.dateIso ? new Date(b.dateIso).getTime() : 0;
+          return db - da; // most recent first
+        })
+        .map(p => {
+          const dateStr = p.dateIso
+            ? new Date(p.dateIso).toLocaleDateString("en-NZ", { year: "numeric", month: "short", day: "numeric" })
+            : (p.dateRaw || "—");
+          const txn = p.stripePaymentIntent || "—";
+          const amt = p.amount != null ? paymentsFmtMoney(p.amount) : "—";
+          return `<div class="payment-history-row">
+            <div class="payment-history-amount">${amt}</div>
+            <div class="payment-history-txn" title="${attrEsc(txn)}">${attrEsc(txn)}</div>
+            <div class="payment-history-date">${dateStr}</div>
+          </div>`;
+        }).join("");
+      historyHtml = `
+        <div class="payment-history">
+          <div class="payment-history-label">PAYMENT HISTORY</div>
+          <div class="payment-history-rows">
+            <div class="payment-history-header">
+              <div>AMOUNT</div>
+              <div>TRANSACTION ID</div>
+              <div>DATE</div>
+            </div>
+            ${historyRows}
+          </div>
+        </div>`;
     }
 
-    const scheduleHtml = rows.length ? `
-      <div class="payments-schedule">
-        <div class="payments-schedule-label">PAYMENT SCHEDULE</div>
-        ${rows.join("")}
-      </div>
-    ` : "";
+    const infoHtml = paymentsInfo ? `<div class="payments-header">${paymentsInfo}</div>` : "";
+    const actionsHtml = buttonHtml ? `<div class="payment-actions">${buttonHtml}</div>` : "";
 
     return `
       ${infoHtml}
-      ${btnHtml}
-      ${scheduleHtml}
+      ${summaryHtml}
+      ${actionsHtml}
+      ${customAmountHtml}
+      ${historyHtml}
     `;
+  }
+
+  // Custom-amount payment handler. Reads the input, validates, applies the
+  // 3.5% surcharge, then hands off to the existing startCheckout() flow
+  // by setting data-* attrs on the button element.
+  function startCustomCheckout(event, btn) {
+    event.preventDefault();
+    const input = document.getElementById("customPayAmount");
+    const amount = parseFloat(input ? input.value : "");
+    if (!amount || amount <= 0) {
+      alert("Please enter a valid amount to pay.");
+      return false;
+    }
+    const charge = paymentsSurcharge(amount);
+    const tripName = portalData.program_name || portalData.portal_title || portalData.destination || "Pacific Discovery";
+    btn.dataset.baseAmount   = String(amount);
+    btn.dataset.chargeAmount = String(charge);
+    btn.dataset.description  = `${tripName} — Custom Payment`;
+    btn.dataset.paymentType  = "card";
+    return startCheckout(event, btn);
   }
 
   function loadSection(field) {
