@@ -987,7 +987,7 @@
     .leader-card--school-leader     .leader-card-role { color: #3B5998; }
     .leader-card--expedition-leader { border-top-color: #d6a380; }
     .leader-card--expedition-leader .leader-card-role { color: #d6a380; }
-    /* Admin variant — School Support Manager / Expedition Planning Manager. Distinct
+    /* Admin variant — Admissions Advisor / Admissions Director / Instructor. Distinct
        teal accent so admins read as a separate role at a glance. */
     .leader-card--admin             { border-top-color: #55BBD2; }
     .leader-card--admin             .leader-card-role { color: #55BBD2; }
@@ -3094,14 +3094,16 @@
 
       // Roles whose admin cards should expose email + phone on the
       // Expedition Overview. Roles NOT in this set get a card with only
-      // name + bio (no contact info shown). Per spec:
-      //   School Support Manager      → contact info VISIBLE
-      //   Expedition Planning Manager → no contact info
+      // name + bio (no contact info shown). All three admissions-facing
+      // roles show contact info by default so prospective / current
+      // students can reach them directly.
       const ADMIN_ROLES_WITH_CONTACT = new Set([
-        "School Support Manager"
+        "Admissions Advisor",
+        "Admissions Director",
+        "Instructor"
       ]);
 
-      // Admins (School Support Manager / Expedition Planning Manager) —
+      // Admins (Admissions Advisor / Admissions Director / Instructor) —
       // rendered FIRST so they sit at the top of SCHOOL CONTACTS. Same
       // renderLeaderCard helper as the other roles so spacing/photo
       // size/clamp behaviour stays aligned across the row.

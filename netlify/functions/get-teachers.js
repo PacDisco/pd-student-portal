@@ -70,7 +70,7 @@ export async function handler(event) {
       )
     ]);
 
-    // 3b. Admins (School Support Manager, Expedition Planning Manager) are looked up
+    // 3b. Admins (Admissions Advisor, Admissions Director, Instructor) are looked up
     //     globally — they're not associated to any specific portal. Showing
     //     them on every trip's Expedition Overview is the whole point of
     //     the admin role. We search by the admin_role contact property and
@@ -164,7 +164,7 @@ function shapeTripLeader(c, fileUrlMap) {
 // contact records (same shape as fetchContactRecords) so they can be
 // folded into the same File-ID resolution pass as the other buckets.
 async function fetchAdminContacts(headers) {
-  const ROLES = ["School Support Manager", "Expedition Planning Manager"];
+  const ROLES = ["Admissions Advisor", "Admissions Director", "Instructor"];
 
   const res = await fetch(
     "https://api.hubapi.com/crm/v3/objects/contacts/search",

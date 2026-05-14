@@ -7,7 +7,7 @@
 //   2. Look up the invitee's contact by email; create one if it doesn't
 //      exist (with optional first/last name from the form).
 //   3. Set their admin_role property to the requested role
-//      (School Support Manager | Expedition Planning Manager).
+//      (Admissions Advisor | Admissions Director | Instructor).
 //   4. Generate a one-time portal_token + portal_token_expiry, save to
 //      the contact, and email them a link to /set-password.html so they
 //      can set their password and log in.
@@ -23,7 +23,7 @@ import crypto from "crypto";
 import nodemailer from "nodemailer";
 
 // Roles the FORM is allowed to ASSIGN to a new admin. The form's dropdown
-// is hardcoded to these two — these are the only roles that show up as
+// is hardcoded to these three — these are the roles that show up as
 // cards on the Expedition Overview. If you want to assign a different
 // role (e.g. "Founder", "Director") you can either:
 //   (a) edit the dropdown in admin-invite.html to expose it, OR
@@ -31,8 +31,9 @@ import nodemailer from "nodemailer";
 // Either way, ANY non-empty admin_role grants login + trip-picker access
 // to the holder — see the inviter check below.
 const ALLOWED_ASSIGNABLE_ROLES = new Set([
-  "School Support Manager",
-  "Expedition Planning Manager"
+  "Admissions Advisor",
+  "Admissions Director",
+  "Instructor"
 ]);
 
 let cachedTransporter = null;
@@ -90,7 +91,7 @@ export async function handler(event) {
     // 1. Verify the caller is an admin in HubSpot. ANY non-empty
     //    admin_role grants invite permission — not just the two roles
     //    the form lets you assign — so e.g. a "Founder" or "Director"
-    //    can also invite School Support Managers / Expedition Planning Managers.
+    //    can also invite Admissions Advisors / Admissions Directors / Instructors.
     const inviter = await findContactByEmail(inviterEmail, headers);
     const inviterRole = (inviter?.properties?.admin_role || "").trim();
     if (!inviter || !inviterRole) {
