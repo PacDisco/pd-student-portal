@@ -992,7 +992,37 @@
     .leader-card--admin             { border-top-color: #55BBD2; }
     .leader-card--admin             .leader-card-role { color: #55BBD2; }
 
-    /* FLIGHTS & INSURANCE */
+    /* VISAS, FLIGHTS & INSURANCE — stacked rich-text sections */
+    .info-sections {
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+      margin-top: 24px;
+      max-width: 800px;
+    }
+    .info-section {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-top: 4px solid #55BBD2;
+      padding: 20px 24px;
+    }
+    .info-section-label {
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      font-weight: 600;
+      color: #999;
+      margin-bottom: 12px;
+    }
+    .info-section-body {
+      font-size: 14px;
+      color: #212121;
+      line-height: 1.6;
+    }
+    .info-section-body p:first-child { margin-top: 0; }
+    .info-section-body p:last-child  { margin-bottom: 0; }
+    .info-section-body a { color: #3B5998; }
+
+    /* FLIGHTS & INSURANCE (legacy — kept in case any other page uses it) */
     .flights-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -1561,7 +1591,7 @@
   </div>
 
   <div class="tile" onclick="loadSection('destination_overview_content')">
-    FLIGHTS & INSURANCE
+    VISAS, FLIGHTS & INSURANCE
   </div>
 
   <div class="tile" onclick="loadSection('travel_information_content')">
@@ -2438,35 +2468,33 @@
   }
 
   function loadFlightsAndInsurance() {
+    // VISAS, FLIGHTS & INSURANCE tab — three stacked rich-text sections,
+    // each backed by a separate HubSpot property on the Program object:
+    //   visa_information       — pre-departure visa requirements / process
+    //   flight_information     — flight schedule, baggage, transfers, etc.
+    //   insurance_information  — coverage overview, policy + claims info
+    //
+    // Each section renders its rich-text HTML directly (the HubSpot rich-text
+    // editor outputs trusted HTML). Empty fields fall back to a "TBC" stub
+    // so the structure is consistent even before content is filled in.
     const p = portalData;
 
-    function detail(label, val) {
-      const formatted = val ? applyTextBreaks(val) : '<span class="tbc">TBC</span>';
-      return `<div class="flight-detail"><strong>${label}:</strong> ${formatted}</div>`;
+    function section(label, html) {
+      const body = (html || "").trim()
+        ? `<div class="info-section-body">${html}</div>`
+        : `<div class="info-section-body"><span class="tbc">TBC</span></div>`;
+      return `
+        <div class="info-section">
+          <div class="info-section-label">${label}</div>
+          ${body}
+        </div>`;
     }
 
     return `
-      <div class="flights-grid">
-        <div class="flight-card">
-          <h4>DEPARTURE FLIGHT</h4>
-          <div class="flight-date">${formatDate(p.flight_departure_date)}</div>
-          <div class="readmore-content">
-            ${detail("Airline(s)", p.departure_airlines)}
-            ${detail("Routing", p.departure_routing)}
-          </div>
-        </div>
-        <div class="flight-card return">
-          <h4>RETURN FLIGHT</h4>
-          <div class="flight-date">${formatDate(p.return_flight_date)}</div>
-          <div class="readmore-content">
-            ${detail("Airline(s)", p.return_flight_airlines)}
-            ${detail("Routing", p.return_flight_routing)}
-          </div>
-        </div>
-      </div>
-      <div class="insurance-section">
-        <div class="insurance-section-label">INSURANCE</div>
-        <div id="insuranceContent"><span style="font-size:13px; color:#999;">Loading insurance details...</span></div>
+      <div class="info-sections">
+        ${section("VISA INFORMATION",      p.visa_information)}
+        ${section("FLIGHT INFORMATION",    p.flight_information)}
+        ${section("INSURANCE INFORMATION", p.insurance_information)}
       </div>
     `;
   }
@@ -2785,10 +2813,13 @@
       }
 
       if (field === "destination_overview_content") {
+        // VISAS, FLIGHTS & INSURANCE — three rich-text sections rendered
+        // synchronously from portalData. No async insurance link fetch
+        // is needed any more; everything lives on the program record.
         content.innerHTML = loadFlightsAndInsurance();
         content.style.opacity = 1;
         applyReadMoreClamping(content);
-        await loadInsurance();
+        styleLinksAsButtons();
         return;
       }
 

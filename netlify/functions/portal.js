@@ -219,6 +219,8 @@ export async function handler(event) {
       // recording). The live link auto-hides in the UI once the date passes.
       "information_session", "information_sessions_meeting_link", "information_session_recording",
       "predeparture_webinar_date", "predeparture_webinar_link", "predeparture_webinar_recording",
+      // Visas, Flights & Insurance tab — three rich-text content fields.
+      "visa_information", "flight_information", "insurance_information",
       // Legacy schedule fields — still fetched for fallback in case the
       // record references them elsewhere; the old overview cards that used
       // them have been removed from the UI.
