@@ -2408,11 +2408,14 @@
             </div>`
           : "";
         // Recording shows whenever the URL is populated (typically uploaded
-        // after the event runs).
+        // after the event runs). Uses the blue --app modifier so the
+        // "secondary" recording action visually contrasts with the orange
+        // live-meeting button, matching the Itinerary + Edit Application
+        // pattern on the Quick Links card.
         const recordingHtml = e.recordingUrl
           ? `<div class="quick-link-row">
               <div class="quick-link-row-label">RECORDING</div>
-              <a href="${e.recordingUrl}" target="_blank" class="event-link">WATCH RECORDING</a>
+              <a href="${e.recordingUrl}" target="_blank" class="event-link event-link--app">WATCH RECORDING</a>
             </div>`
           : "";
         return `
