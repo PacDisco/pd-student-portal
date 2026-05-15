@@ -1763,6 +1763,70 @@
       letter-spacing: 0.5px;
     }
 
+    /* Documents checklist (rendered at the top of the Document Uploads tab) */
+    .doc-checklist {
+      list-style: none;
+      padding: 0;
+      margin: 4px 0 12px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 8px;
+      max-width: 800px;
+    }
+    .doc-checklist-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border: 1px solid #e5e7eb;
+      background: white;
+      font-size: 13px;
+      line-height: 1.3;
+    }
+    .doc-checklist-mark {
+      flex: 0 0 22px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 1.5px solid #d1d5db;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 13px;
+      color: white;
+      background: white;
+    }
+    .doc-checklist-item--done {
+      background: #f0fdf4;
+      border-color: #c7e9d2;
+    }
+    .doc-checklist-item--done .doc-checklist-mark {
+      background: #81C243;
+      border-color: #81C243;
+    }
+    .doc-checklist-item--done .doc-checklist-label {
+      color: #4a4a4a;
+      text-decoration: line-through;
+      text-decoration-color: rgba(0,0,0,0.25);
+    }
+    .doc-checklist-item--pending .doc-checklist-label {
+      color: #212121;
+      font-weight: 500;
+    }
+    .doc-checklist-allgood {
+      font-size: 13px;
+      color: #4a4a4a;
+      padding: 6px 0 0;
+      font-weight: 500;
+    }
+    .doc-checklist-hint {
+      font-size: 12px;
+      color: #999;
+      padding: 6px 0 0;
+      letter-spacing: 0.3px;
+    }
+
     .docs-jotform-iframe {
       width: 100%;
       border: 1px solid #e5e7eb;
@@ -3188,6 +3252,12 @@
     let documents = [];
     let formTitlesById = {}; // { formId: title }
     let docsError = null;
+    // Checklist from deal.documents_needed — fetched in parallel with
+    // the rest below. Always renders at the top of the tab when there's
+    // at least one item (either pending or completed) to show.
+    const checklistPromise = fetch(`/.netlify/functions/get-document-checklist?email=${encodeURIComponent(email)}`)
+      .then(r => r.json())
+      .catch(err => { console.error("Documents checklist fetch error:", err); return { pending: [], completed: [], options: [] }; });
 
     try {
       // 1. Get the configured form URL(s). Prefer the trip's portalData
@@ -3225,10 +3295,36 @@
       docsError = err.message;
     }
 
+    // Await the checklist (kicked off at the start of the function).
+    // Build a checked/unchecked list with completed items first (visual
+    // progress), pending items below. Both halves filter out empty values.
+    const checklist = await checklistPromise;
+    const pendingItems   = Array.isArray(checklist?.pending)   ? checklist.pending   : [];
+    const completedItems = Array.isArray(checklist?.completed) ? checklist.completed : [];
+
     // 3. Build the page.
     let html = "";
 
-    // a. Uploaded documents list
+    // a. Documents checklist (top of page) — only renders if we have at
+    //    least one item from either bucket.
+    if (pendingItems.length || completedItems.length) {
+      const itemHtml = (label, done) => `
+        <li class="doc-checklist-item ${done ? 'doc-checklist-item--done' : 'doc-checklist-item--pending'}">
+          <span class="doc-checklist-mark" aria-hidden="true">${done ? '&#10003;' : ''}</span>
+          <span class="doc-checklist-label">${attrEsc(label)}</span>
+        </li>`;
+      const completedHtml = completedItems.map(l => itemHtml(l, true)).join("");
+      const pendingHtml   = pendingItems.map(l => itemHtml(l, false)).join("");
+      html += `<div class="docs-section">
+        <div class="docs-section-label">DOCUMENT CHECKLIST</div>
+        <ul class="doc-checklist">${completedHtml}${pendingHtml}</ul>
+        ${pendingItems.length === 0
+          ? `<div class="doc-checklist-allgood">All documents submitted &mdash; thank you!</div>`
+          : `<div class="doc-checklist-hint">${pendingItems.length} document${pendingItems.length === 1 ? '' : 's'} still to upload below.</div>`}
+      </div>`;
+    }
+
+    // b. Uploaded documents list
     html += `<div class="docs-section">
       <div class="docs-section-label">YOUR UPLOADED DOCUMENTS</div>`;
     if (docsError) {
