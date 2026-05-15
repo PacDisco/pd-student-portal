@@ -2,10 +2,11 @@
 // Deal, used by the Document Uploads tab on the portal.
 //
 // Reads a single multi-checkbox property on the Deal — internal name
-// `documents_needed` by default. The property's master list of *options*
-// (defined at the property level in HubSpot Settings) is the universe of
-// possible required documents. The current value on the deal is the
-// subset that's *still pending*.
+// `document_submissions` by default (override with the
+// DOCUMENTS_NEEDED_PROPERTY env var if HubSpot ever renames it). The
+// property's master list of *options* (defined at the property level in
+// HubSpot Settings) is the universe of possible required documents. The
+// current value on the deal is the subset that's *still pending*.
 //
 // Response shape:
 //   {
@@ -20,9 +21,9 @@
 //
 // Required env var: HUBSPOT_API_KEY
 // Optional env var: DOCUMENTS_NEEDED_PROPERTY — override internal name
-//                   if HubSpot uses something other than "documents_needed".
+//                   if HubSpot uses something other than "document_submissions".
 
-const PROPERTY_NAME = process.env.DOCUMENTS_NEEDED_PROPERTY || "documents_needed";
+const PROPERTY_NAME = process.env.DOCUMENTS_NEEDED_PROPERTY || "document_submissions";
 const IGNORED_VALUES = new Set(["bio complete"]); // case-insensitive
 
 export async function handler(event) {
