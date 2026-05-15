@@ -1603,6 +1603,32 @@
       letter-spacing: 0.5px;
     }
 
+    /* Resources rich-text block, rendered below the three manual cards */
+    .manuals-resources {
+      margin-top: 28px;
+      max-width: 800px;
+    }
+    .manuals-resources-label {
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      font-weight: 600;
+      color: #999;
+      margin-bottom: 12px;
+    }
+    .manuals-resources-body {
+      font-size: 14px;
+      color: #212121;
+      line-height: 1.6;
+    }
+    .manuals-resources-body p:first-child { margin-top: 0; }
+    .manuals-resources-body p:last-child  { margin-bottom: 0; }
+    .manuals-resources-body a {
+      color: #3B5998;
+      text-decoration: underline;
+      word-break: break-word;
+    }
+    .manuals-resources-body a:hover { color: #55BBD2; }
+
     /* TRIP LEADER RESOURCE LINKS
        Denser variant of .manual-card. There can be up to ~18 of these so
        the cards are smaller and the grid auto-fills more aggressively. */
@@ -1931,37 +1957,34 @@
   // See HOW_TO_ADD_FIELDS.md in the project root for the full guide.
   // ============================================================
   const MANUAL_FIELDS = [
-    { label: "Student Manual",         prop: "student_manual" },
-    { label: "Student Handbook",       prop: "student_handbook" },
-    { label: "Gear List",              prop: "gear_list" },
-    { label: "Fundraising Guide",      prop: "fundraising_guide" },
-    { label: "Fitness",                prop: "fitness" },
-    { label: "Generic Kit Info Flyer", prop: "generic_kit_info_flyer" },
-    { label: "Fundraising Team Tool",  prop: "fundraising_team_tool" },
-    { label: "Fundraising Templates",  prop: "fundraising_templates" }
-    // Add new entries here, e.g.:
-    //   { label: "Pre-Trip Checklist", prop: "pre_trip_checklist" }
+    { label: "Student Manual",   prop: "student_manual" },
+    { label: "Student Handbook", prop: "student_handbook" },
+    { label: "Gear List",        prop: "gear_list" }
+    // The previous list also included Fundraising Guide, Fitness, Generic
+    // Kit Info Flyer, Fundraising Team Tool, and Fundraising Templates —
+    // those have been dropped per the Pacific Discovery layout. The
+    // narrative content for additional resources now renders below the
+    // three cards from the `general_information_content` rich-text field.
   ];
 
   function renderManualsCards() {
-    const cards = MANUAL_FIELDS
-      .filter(f => {
-        const v = portalData[f.prop];
-        return v && String(v).trim();
-      })
-      .map(f => {
-        const url = String(portalData[f.prop]).trim();
-        return `
-          <div class="manual-card">
-            <h4>${f.label.toUpperCase()}</h4>
-            <a href="${url}" target="_blank" rel="noopener" class="manual-link">VIEW DOCUMENT</a>
-          </div>
-        `;
-      });
-
-    if (cards.length === 0) {
-      return `<div class="manuals-empty">No resources have been added yet.</div>`;
-    }
+    // Always render one card per MANUAL_FIELDS entry, even when the
+    // underlying URL is empty — keeps the row layout stable as content
+    // gets filled in. Cards with no URL show a "TBC" stub instead of
+    // a clickable button.
+    const cards = MANUAL_FIELDS.map(f => {
+      const rawValue = portalData[f.prop];
+      const url = rawValue ? String(rawValue).trim() : "";
+      const cta = url
+        ? `<a href="${url}" target="_blank" rel="noopener" class="manual-link">VIEW DOCUMENT</a>`
+        : `<span class="tbc" style="font-size:11px; letter-spacing:1px;">NOT YET AVAILABLE</span>`;
+      return `
+        <div class="manual-card">
+          <h4>${f.label.toUpperCase()}</h4>
+          ${cta}
+        </div>
+      `;
+    });
     return `<div class="manual-grid">${cards.join("")}</div>`;
   }
 
@@ -3066,9 +3089,19 @@
       }
 
       if (field === "general_information_content") {
-        // Manuals / Resources tab — render one card per populated resource
-        // from the Portal record's URL fields (see MANUAL_FIELDS at the top).
-        content.innerHTML = renderManualsCards();
+        // Manuals / Resources tab — top: three URL cards (Student Manual,
+        // Student Handbook, Gear List) from the Program record's URL
+        // fields (see MANUAL_FIELDS). Below: the general_information_content
+        // rich-text field rendered under a "Resources" heading.
+        const cardsHtml = renderManualsCards();
+        const resourcesBody = (portalData.general_information_content || "").trim();
+        const resourcesHtml = resourcesBody
+          ? `<div class="manuals-resources">
+              <div class="manuals-resources-label">RESOURCES</div>
+              <div class="manuals-resources-body">${resourcesBody}</div>
+            </div>`
+          : "";
+        content.innerHTML = cardsHtml + resourcesHtml;
         content.style.opacity = 1;
         return;
       }
