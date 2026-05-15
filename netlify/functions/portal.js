@@ -249,7 +249,7 @@ export async function handler(event) {
       "payment_date_9", "payment_amount_9",
       "payment_date_10", "payment_amount_10",
       // Student/family resources (manuals tab)
-      "student_manual", "student_handbook", "gear_list",
+      "student_manual", "student_handbook", "gear_list", "selfdiscovery_workbook",
       "fundraising_guide", "fitness",
       "generic_kit_info_flyer", "fundraising_team_tool", "fundraising_templates",
       // Insurance + documents

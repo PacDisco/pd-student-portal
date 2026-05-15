@@ -1957,14 +1957,13 @@
   // See HOW_TO_ADD_FIELDS.md in the project root for the full guide.
   // ============================================================
   const MANUAL_FIELDS = [
-    { label: "Student Manual",   prop: "student_manual" },
-    { label: "Student Handbook", prop: "student_handbook" },
-    { label: "Gear List",        prop: "gear_list" }
-    // The previous list also included Fundraising Guide, Fitness, Generic
-    // Kit Info Flyer, Fundraising Team Tool, and Fundraising Templates —
-    // those have been dropped per the Pacific Discovery layout. The
-    // narrative content for additional resources now renders below the
-    // three cards from the `general_information_content` rich-text field.
+    { label: "Student Manual",        prop: "student_manual" },
+    { label: "Student Handbook",      prop: "student_handbook" },
+    { label: "Gear List",             prop: "gear_list" },
+    { label: "Self-Discovery Workbook", prop: "selfdiscovery_workbook" }
+    // Narrative content for additional resources renders below these
+    // cards from the rich-text "Resources" property (see candidates in
+    // the general_information_content branch of loadSection).
   ];
 
   function renderManualsCards() {
