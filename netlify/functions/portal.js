@@ -221,6 +221,11 @@ export async function handler(event) {
       "predeparture_webinar_date", "predeparture_webinar_link", "predeparture_webinar_recording",
       // Visas, Flights & Insurance tab — three rich-text content fields.
       "visa_information", "flight_information", "insurance_information",
+      // Manuals tab — rich-text "Resources" block below the 3 URL cards.
+      // Try several common property names so this works regardless of
+      // what the Program object actually calls it. If your HubSpot uses
+      // a different name, add it to this list.
+      "resources", "resources_content", "student_resources", "manuals_resources",
       // Legacy schedule fields — still fetched for fallback in case the
       // record references them elsewhere; the old overview cards that used
       // them have been removed from the UI.

@@ -3091,10 +3091,27 @@
       if (field === "general_information_content") {
         // Manuals / Resources tab — top: three URL cards (Student Manual,
         // Student Handbook, Gear List) from the Program record's URL
-        // fields (see MANUAL_FIELDS). Below: the general_information_content
-        // rich-text field rendered under a "Resources" heading.
+        // fields (see MANUAL_FIELDS). Below: a rich-text "Resources"
+        // section. The rich-text property internal name may vary between
+        // HubSpot setups, so we try a handful of likely candidates and
+        // use the first one that has content. If you know the actual
+        // internal name, add it to PORTAL_PROPERTIES in portal.js so the
+        // value is fetched, then it'll get picked up here automatically.
         const cardsHtml = renderManualsCards();
-        const resourcesBody = (portalData.general_information_content || "").trim();
+        const resourcesCandidates = [
+          portalData.resources,
+          portalData.resources_content,
+          portalData.student_resources,
+          portalData.manuals_resources,
+          portalData.general_information_content
+        ];
+        let resourcesBody = "";
+        for (const candidate of resourcesCandidates) {
+          if (candidate && String(candidate).trim()) {
+            resourcesBody = String(candidate).trim();
+            break;
+          }
+        }
         const resourcesHtml = resourcesBody
           ? `<div class="manuals-resources">
               <div class="manuals-resources-label">RESOURCES</div>
