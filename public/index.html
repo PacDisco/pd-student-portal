@@ -1935,7 +1935,7 @@
   </div>
 
   <div id="tripLeaderTile" class="tile" onclick="loadSection('trip_leader_information_content')">
-    INSTRUCTOR RESOURCES
+    EXPEDITION LEADER RESOURCES
   </div>
 
   <div id="teacherTile" class="tile" onclick="loadSection('teacher_information_content')">
@@ -3283,21 +3283,28 @@
 
       formInputs = parseFormInputs(raw);
 
-      // 2. If we have at least one form, ask the backend for this user's
-      //    prior submissions across all of them in a single call.
-      if (formInputs.length > 0) {
-        const ids = formInputs.map(f => f.formId).filter(Boolean).join(",");
-        if (ids) {
-          const docsRes = await fetch(
-            `/.netlify/functions/get-uploaded-documents?email=${encodeURIComponent(email)}&formIds=${encodeURIComponent(ids)}`
-          );
-          const docsData = await docsRes.json();
-          if (docsData.error) docsError = docsData.error;
-          documents = Array.isArray(docsData.documents) ? docsData.documents : [];
-          (docsData.forms || []).forEach(f => {
-            if (f && f.id) formTitlesById[f.id] = f.title;
-          });
-        }
+      // 2. Ask the backend for this user's prior submissions:
+      //    - across every "regular" document-upload form (formIds=...)
+      //    - PLUS the applicant's profile photo from the application form
+      //      (appPhotoFormId=...) — same form ID used by the Edit
+      //      Application button on the Expedition Overview. Hardcoded here
+      //      so the photo shows up alongside the other docs regardless of
+      //      how documents_upload_form is configured.
+      const APPLICATION_FORM_ID = "240277257210046";
+      const ids = formInputs.map(f => f.formId).filter(Boolean).join(",");
+      if (ids || APPLICATION_FORM_ID) {
+        const params = new URLSearchParams({ email });
+        if (ids) params.set("formIds", ids);
+        if (APPLICATION_FORM_ID) params.set("appPhotoFormId", APPLICATION_FORM_ID);
+        const docsRes = await fetch(
+          `/.netlify/functions/get-uploaded-documents?${params.toString()}`
+        );
+        const docsData = await docsRes.json();
+        if (docsData.error) docsError = docsData.error;
+        documents = Array.isArray(docsData.documents) ? docsData.documents : [];
+        (docsData.forms || []).forEach(f => {
+          if (f && f.id) formTitlesById[f.id] = f.title;
+        });
       }
     } catch (err) {
       console.error("Documents tab load error:", err);
@@ -4156,7 +4163,13 @@
       document.getElementById("tripLeaderTile").style.display = "none";
     }
 
-    if (!labels.includes("Teacher")) {
+    // INSTRUCTOR PI FOLDER tile — visible at all times to anyone whose
+    // contact admin_role is "Instructor". This is independent of any
+    // program-association label and of the 10-day cutoff that hides
+    // expired programs from the instructor's trip-picker; the PI folder
+    // is global, evergreen instructor content.
+    const viewerAdminRole = (sessionStorage.getItem("adminRole") || "").trim();
+    if (viewerAdminRole !== "Instructor") {
       document.getElementById("teacherTile").style.display = "none";
     }
   }

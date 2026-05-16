@@ -224,6 +224,20 @@
     container.innerHTML = html;
   }
 
+  // Instructors stop seeing a program 10 days after its end date.
+  // Other admin roles (Admissions Advisor, Admissions Director, etc.)
+  // keep seeing every program — useful for post-trip reporting/cleanup.
+  function filterPortalsForViewer(portals, role) {
+    if (role !== "Instructor") return portals;
+    const cutoff = Date.now() - 10 * 24 * 60 * 60 * 1000; // 10 days ago, ms
+    return portals.filter(p => {
+      if (!p.endDate) return true; // no end date set → always show
+      const t = new Date(p.endDate).getTime();
+      if (!Number.isFinite(t)) return true; // unparseable → don't drop
+      return t >= cutoff; // keep if end date is within the last 10 days or future
+    });
+  }
+
   async function init() {
     try {
       const res = await fetch(`/.netlify/functions/get-portals?email=${encodeURIComponent(email)}`);
@@ -234,7 +248,9 @@
         c.innerHTML = `<div class="error">Could not load portals: ${attrEsc(data.error || ("HTTP " + res.status))}</div>`;
         return;
       }
-      renderPortals(Array.isArray(data.portals) ? data.portals : []);
+      const rawPortals = Array.isArray(data.portals) ? data.portals : [];
+      const visible = filterPortalsForViewer(rawPortals, adminRole);
+      renderPortals(visible);
     } catch (err) {
       const c = document.getElementById("picker");
       c.className = "";
