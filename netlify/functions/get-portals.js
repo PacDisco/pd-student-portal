@@ -129,6 +129,11 @@ export async function handler(event) {
           title: props.program_name || props.portal_title || "(untitled trip)",
           destination: dateRange || props.destination || "",
           price: props.program_tuition || props.price || null,
+          // Raw program_end_date so the admin trip-picker can hide trips
+          // that ended >10 days ago for Instructor admins. Kept as the
+          // raw HubSpot value (millisecond epoch or YYYY-MM-DD) so the
+          // frontend's Date() parsing handles both.
+          endDate: props.program_end_date || null,
           associated: associatedIds.has(String(r.id))
         });
       }
