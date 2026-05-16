@@ -2702,8 +2702,8 @@
 
     const events = [
       // "Quick Links" — itinerary URL + Edit Application button (lazy-fetches
-      // the user's Jotform submission id on click).
-      { title: "QUICK LINKS", isQuickLinks: true, itineraryUrl: p.program_itinerary },
+      // the user's Jotform submission id on click) + Gear List URL.
+      { title: "QUICK LINKS", isQuickLinks: true, itineraryUrl: p.program_itinerary, gearListUrl: p.gear_list },
       // Information Sessions — date + (pre-event) live meeting link + recording.
       // The meeting link hides automatically once the date has passed.
       {
@@ -2735,6 +2735,11 @@
         const editAppHtml = `<button type="button"
           class="event-link event-link--app"
           onclick="return openApplicationEdit(this);">EDIT APPLICATION</button>`;
+        // Gear List row — links straight to the program's gear list PDF
+        // (same URL the Manuals tab uses). Shows TBC if blank on the record.
+        const gearListHtml = e.gearListUrl
+          ? `<a href="${e.gearListUrl}" target="_blank" class="event-link">VIEW GEAR LIST</a>`
+          : `<span class="tbc">TBC</span>`;
         return `
           <div class="expedition-card itinerary-card quick-links-card">
             <h4>${e.title}</h4>
@@ -2745,6 +2750,10 @@
             <div class="quick-link-row">
               <div class="quick-link-row-label">YOUR APPLICATION</div>
               ${editAppHtml}
+            </div>
+            <div class="quick-link-row">
+              <div class="quick-link-row-label">GEAR LIST</div>
+              ${gearListHtml}
             </div>
           </div>`;
       }
@@ -3461,7 +3470,7 @@
 
       const section = document.createElement("div");
       section.className = "teacher-section";
-      section.innerHTML = `<div class="teacher-section-label">PROGRAM CONTACTS</div>`;
+      section.innerHTML = `<div class="teacher-section-label">SCHOOL CONTACTS</div>`;
 
       const grid = document.createElement("div");
       grid.className = "teacher-grid";
