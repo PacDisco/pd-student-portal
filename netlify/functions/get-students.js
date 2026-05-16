@@ -271,11 +271,15 @@ async function fetchStudentPayments(contactId, headers) {
 // form plus its successor so students who used the newer form aren't missed.
 //
 // For each submission we look at the email-control answer and any
-// control_fileupload whose label mentions "portrait" — if both are present, we
-// record the (lowercased) email → first photo URL. Most recent submission wins.
+// control_fileupload whose label matches the photo-field pattern (covers
+// "Please upload an image of yourself" on the Pacific Discovery form, plus
+// older variants like "Portrait" or "Self-Portrait"). If both are present,
+// we record the (lowercased) email → first photo URL. Most recent
+// submission wins.
 //
 // Failures are swallowed silently: if the API key is missing or the call
 // fails, we just return an empty map and student cards render without photos.
+const PORTRAIT_FIELD_REGEX = /(image\s+of\s+(yourself|you)|self[\s-]*portrait|profile\s+photo|head\s*shot|portrait)/i;
 async function loadPortraitsByEmail() {
   const empty = new Map();
   if (!process.env.JOTFORM_API_KEY) return empty;
@@ -332,8 +336,8 @@ async function loadPortraitsByEmail() {
       if (!email && t === "control_email" && a.answer) {
         email = String(a.answer).toLowerCase().trim();
       } else if (!portrait && t === "control_fileupload" && a.answer) {
-        const text = String(a.text || "").toLowerCase();
-        if (/portrait/.test(text)) {
+        const text = String(a.text || "");
+        if (PORTRAIT_FIELD_REGEX.test(text)) {
           const v = a.answer;
           if (Array.isArray(v) && v.length > 0) portrait = String(v[0]);
           else if (typeof v === "string" && v) portrait = v;
