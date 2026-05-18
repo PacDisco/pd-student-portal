@@ -68,6 +68,8 @@ export async function handler(event) {
       fetchContactRecords(
         tripLeaderIds,
         headers,
+        // Instructor cards show name + photo + bio only on the parent-
+        // facing overview — no email/phone exposed.
         ["firstname", "lastname", "trip_leader_bio", "expedition_leader_photo"]
       )
     ]);
@@ -166,7 +168,12 @@ function shapeTripLeader(c, fileUrlMap) {
 // contact records (same shape as fetchContactRecords) so they can be
 // folded into the same File-ID resolution pass as the other buckets.
 async function fetchAdminContacts(headers) {
-  const ROLES = ["Admissions Advisor", "Admissions Director", "Instructor"];
+  // Instructors are intentionally NOT in this list. They appear on the
+  // Expedition Overview only when they're program-associated via the
+  // "Instructor" association label (handled in the main handler above).
+  // Admissions roles remain global — they're meant to surface on every
+  // program's overview regardless of association.
+  const ROLES = ["Admissions Advisor", "Admissions Director"];
 
   const res = await fetch(
     "https://api.hubapi.com/crm/v3/objects/contacts/search",
