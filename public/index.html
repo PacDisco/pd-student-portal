@@ -1659,6 +1659,14 @@
       line-height: 1.3;
     }
 
+    .tl-link-card .tl-link-meta {
+      font-size: 10px;
+      letter-spacing: 0.8px;
+      color: #999;
+      margin-top: 2px;
+      text-transform: uppercase;
+    }
+
     .tl-link-card .tl-link-btn {
       display: inline-block;
       align-self: flex-start;
@@ -2116,6 +2124,64 @@
     { label: "Fundraising Team Tool",  prop: "fundraising_team_tool" },
     { label: "Fundraising Templates",  prop: "fundraising_templates" }
   ];
+
+  // Live-loads the Pacific Discovery Instructor Resources HubSpot Files
+  // folder and renders its contents into #instructorFilesContainer (the
+  // placeholder block injected at the top of the Instructor Resources
+  // tab). Re-uses the same `.tl-link-card` styling as the legacy hardcoded
+  // link grid so the look stays consistent.
+  //
+  // File size formatting + extension-based icon are kept inline so the
+  // helper is self-contained. Falls back to friendly error states if the
+  // function returns an error / empty list.
+  async function loadInstructorFiles() {
+    const el = document.getElementById("instructorFilesContainer");
+    if (!el) return;
+
+    let data;
+    try {
+      const res = await fetch("/.netlify/functions/get-instructor-files");
+      data = await res.json();
+    } catch (err) {
+      el.innerHTML = `<div class="manuals-empty">Could not load files. Please refresh in a minute.</div>`;
+      return;
+    }
+
+    if (data?.error) {
+      el.innerHTML = `<div class="manuals-empty">Could not load files: ${attrEsc(data.error)}${
+        data.hint ? `<br><small style="opacity:.7;">${attrEsc(data.hint)}</small>` : ""
+      }</div>`;
+      return;
+    }
+
+    const files = Array.isArray(data?.files) ? data.files : [];
+    if (files.length === 0) {
+      el.innerHTML = `<div class="manuals-empty">No files have been added to the Instructor Resources folder yet.</div>`;
+      return;
+    }
+
+    function fmtSize(bytes) {
+      if (!bytes || !isFinite(bytes)) return "";
+      if (bytes < 1024)         return `${bytes} B`;
+      if (bytes < 1024 * 1024)  return `${(bytes / 1024).toFixed(0)} KB`;
+      return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    }
+
+    const cards = files.map(f => {
+      const ext  = (f.extension || "").toUpperCase();
+      const size = fmtSize(f.size);
+      const meta = [ext, size].filter(Boolean).join(" · ");
+      const href = f.url || "#";
+      return `
+        <div class="tl-link-card">
+          <div class="tl-link-title">${attrEsc(f.name)}</div>
+          ${meta ? `<div class="tl-link-meta">${attrEsc(meta)}</div>` : ""}
+          <a href="${attrEsc(href)}" target="_blank" rel="noopener" class="tl-link-btn">VIEW</a>
+        </div>`;
+    });
+
+    el.innerHTML = `<div class="tl-link-grid">${cards.join("")}</div>`;
+  }
 
   // Generic resource-link grid renderer used by the Trip Leader and
   // Teacher tabs. Hides any field whose URL is blank on both the trip
@@ -3142,21 +3208,29 @@
       }
 
       if (field === "trip_leader_information_content") {
-        // Trip Leader tab — three sections, top to bottom:
-        //   1. Resource link grid (Leader Manual, Risk Assessments, etc.).
-        //      Each entry renders as a small "Title + Details" card and is
-        //      hidden when its URL is blank on both the trip record and the
-        //      global record. Configure via TRIP_LEADER_LINKS above.
+        // Instructor Resources tab — three sections, top to bottom:
+        //   1. Files from the central HubSpot Files "Instructor Resources"
+        //      folder (id 212982599465). Live-fetched from HubSpot so any
+        //      file added there shows up here without a code change. Each
+        //      file becomes a clickable card with the file name + a
+        //      "VIEW" button. Falls back to a "couldn't load" stub if the
+        //      API errors out (e.g., missing files scope on the private app).
         //   2. The trip_leader_information_content rich-text block from the
-        //      Portal record — anything the school types into HubSpot.
+        //      Program record — anything the school types into HubSpot.
         //   3. The student list, with each card opening a Medical
         //      Information modal (filtered subset of the application form).
-        const linksHtml    = renderResourceLinkGrid(TRIP_LEADER_LINKS);
-        const richTextHtml = portalData[field] || "";
-        content.innerHTML  = linksHtml + richTextHtml;
+        content.innerHTML = `<div class="docs-section">
+            <div class="docs-section-label">INSTRUCTOR FILES</div>
+            <div id="instructorFilesContainer"><span style="font-size:13px; color:#999;">Loading files...</span></div>
+          </div>` + (portalData[field] || "");
         content.style.opacity = 1;
         styleLinksAsButtons();
         await loadStudentList(content, { expandable: true });
+        // Fire the folder fetch in parallel with the student list — slots
+        // the file grid into the placeholder above when it returns.
+        loadInstructorFiles().catch(err => {
+          console.error("Instructor files load error:", err);
+        });
         return;
       }
 
@@ -3484,13 +3558,14 @@
 
       // Roles whose admin cards should expose email + phone on the
       // Expedition Overview. Roles NOT in this set get a card with only
-      // name + bio (no contact info shown). All three admissions-facing
-      // roles show contact info by default so prospective / current
-      // students can reach them directly.
+      // name + bio (no contact info shown). Both admissions-facing
+      // roles show contact info so students can reach them directly.
+      // (Instructor was removed — instructors now come exclusively from
+      // the per-program "Instructor" association, rendered separately
+      // below with their own contact card.)
       const ADMIN_ROLES_WITH_CONTACT = new Set([
         "Admissions Advisor",
-        "Admissions Director",
-        "Instructor"
+        "Admissions Director"
       ]);
 
       // Admins (Admissions Advisor / Admissions Director / Instructor) —
@@ -3538,6 +3613,8 @@
       // bio only (no email/phone exposed in the parent-facing view).
       tripLeaders.forEach(l => {
         const bioHtml = l.bio ? applyTextBreaks(l.bio) : "";
+        // Program-associated Instructor cards intentionally hide email/phone
+        // in the parent/student-facing view — name + photo + bio only.
         grid.innerHTML += renderLeaderCard({
           variant: "expedition-leader",
           roleLabel: "INSTRUCTOR",
