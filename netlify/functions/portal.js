@@ -318,6 +318,21 @@ export async function handler(event) {
     const tripProps = portal.properties || {};
     const merged = mergeWithGlobalFallback(tripProps, globalProps);
 
+    // ----- Strip instructor-only fields from the response if the caller
+    //       doesn't have instructor access. -----
+    // The Instructor Resources tab is hidden via CSS for non-instructors,
+    // but the rich-text body would otherwise be sent in this same JSON
+    // response and could be revealed by DOM manipulation. Server-side
+    // stripping ensures non-instructors can't see the content even if
+    // they unhide the tile in devtools.
+    //
+    // Admin viewers (adminPortalId path) always retain the field — they
+    // need it for review/QA.
+    const callerIsInstructor = Array.isArray(labels) && labels.includes("Instructor");
+    if (!adminPortalId && !callerIsInstructor) {
+      delete merged.trip_leader_information_content;
+    }
+
     console.log("PORTAL DATA (merged):", JSON.stringify(merged, null, 2));
 
     // 4. Return data. `availableTripCount` lets the frontend decide

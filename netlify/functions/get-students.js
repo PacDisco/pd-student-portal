@@ -12,12 +12,18 @@
 
 export async function handler(event) {
   try {
-    const { portalId } = event.queryStringParameters || {};
+    const { portalId, email } = event.queryStringParameters || {};
 
     if (!portalId) {
       return {
         statusCode: 400,
         body: JSON.stringify({ error: "Missing portalId" })
+      };
+    }
+    if (!email) {
+      return {
+        statusCode: 401,
+        body: JSON.stringify({ error: "Authentication required" })
       };
     }
 
@@ -26,6 +32,21 @@ export async function handler(event) {
       Authorization: `Bearer ${process.env.HUBSPOT_API_KEY}`,
       "Content-Type": "application/json"
     };
+
+    // ----- Server-side access check -----
+    // The student list contains sensitive medical info. Only callers who
+    // are (a) an admin (any admin_role set), or (b) program-associated as
+    // an Instructor or Teacher on THIS specific portal, are allowed. This
+    // is enforced regardless of the frontend's display state, so DOM
+    // tweaks or direct function URL hits can't bypass it.
+    const access = await checkInstructorAccess(email, portalId, OBJECT, headers);
+    if (!access.allowed) {
+      console.warn(`[get-students] Denied for ${email} on portal ${portalId}: ${access.reason}`);
+      return {
+        statusCode: 403,
+        body: JSON.stringify({ error: "Not authorized to view this list." })
+      };
+    }
 
     // 1. Get all contacts associated to this portal
     const assocRes = await fetch(
@@ -366,4 +387,72 @@ function extractPaymentAmount(raw) {
   const n = parseFloat(cleaned);
   if (!isFinite(n) || n <= 0) return null;
   return n;
+}
+
+// ============================================================
+// Access check: verify the calling email is authorized to view the
+// student roster for a given program record.
+//
+// Allowed if:
+//   - contact has any non-empty admin_role (admins can view any program)
+//   - OR contact has an "Instructor" or "Teacher" association to this
+//     specific portalId (program-associated leaders)
+//
+// All other contacts are denied. The function tolerates HubSpot API
+// failures by denying access — better to fail closed than to leak data
+// on a transient error.
+// ============================================================
+async function checkInstructorAccess(email, portalId, OBJECT, headers) {
+  const cleanEmail = String(email).toLowerCase().trim();
+  if (!cleanEmail) return { allowed: false, reason: "Empty email" };
+
+  // 1. Look up the contact by email + read admin_role.
+  let contact;
+  try {
+    const res = await fetch(
+      "https://api.hubapi.com/crm/v3/objects/contacts/search",
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          filterGroups: [{
+            filters: [{ propertyName: "email", operator: "EQ", value: cleanEmail }]
+          }],
+          properties: ["admin_role"]
+        })
+      }
+    );
+    if (!res.ok) return { allowed: false, reason: `Contact lookup HTTP ${res.status}` };
+    const data = await res.json();
+    contact = data.results?.[0];
+  } catch (err) {
+    return { allowed: false, reason: `Contact lookup threw: ${err.message}` };
+  }
+  if (!contact) return { allowed: false, reason: "Contact not found" };
+
+  // 2. Any non-empty admin_role grants access.
+  if (String(contact.properties?.admin_role || "").trim()) {
+    return { allowed: true, reason: "admin_role" };
+  }
+
+  // 3. Otherwise check for Instructor / Teacher association to this portal.
+  try {
+    const assocRes = await fetch(
+      `https://api.hubapi.com/crm/v4/objects/contacts/${contact.id}/associations/${OBJECT}`,
+      { headers }
+    );
+    if (!assocRes.ok) return { allowed: false, reason: `Association lookup HTTP ${assocRes.status}` };
+    const assocData = await assocRes.json();
+    for (const r of assocData.results || []) {
+      if (String(r.toObjectId) !== String(portalId)) continue;
+      const labels = (r.associationTypes || []).map(t => t.label);
+      if (labels.includes("Instructor") || labels.includes("Teacher")) {
+        return { allowed: true, reason: "instructor_or_teacher_association" };
+      }
+    }
+  } catch (err) {
+    return { allowed: false, reason: `Association lookup threw: ${err.message}` };
+  }
+
+  return { allowed: false, reason: "No matching admin_role or association" };
 }
