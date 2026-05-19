@@ -126,10 +126,9 @@ function jsonResponse(statusCode, body) {
   };
 }
 
-// Allowed if the caller has any non-empty admin_role, OR is associated to
-// any program with the "Instructor" label. Fails closed on HubSpot errors.
+// Allowed if the caller has any non-empty admin_role. Fails closed on
+// HubSpot API errors.
 async function checkInstructorOrAdminAccess(email, headers) {
-  // 1. Find contact + read admin_role.
   let contact;
   try {
     const res = await fetch(
@@ -153,29 +152,8 @@ async function checkInstructorOrAdminAccess(email, headers) {
   }
   if (!contact) return { allowed: false, reason: "Contact not found" };
 
-  // 2. Any non-empty admin_role → access.
   if (String(contact.properties?.admin_role || "").trim()) {
     return { allowed: true, reason: "admin_role" };
   }
-
-  // 3. Otherwise check for Instructor association to ANY program.
-  // The Pacific Discovery Program object id is 2-58411705.
-  try {
-    const assocRes = await fetch(
-      `https://api.hubapi.com/crm/v4/objects/contacts/${contact.id}/associations/2-58411705`,
-      { headers }
-    );
-    if (!assocRes.ok) return { allowed: false, reason: `Association lookup HTTP ${assocRes.status}` };
-    const assocData = await assocRes.json();
-    for (const r of assocData.results || []) {
-      const labels = (r.associationTypes || []).map(t => t.label);
-      if (labels.includes("Instructor")) {
-        return { allowed: true, reason: "instructor_association" };
-      }
-    }
-  } catch (err) {
-    return { allowed: false, reason: `Association lookup threw: ${err.message}` };
-  }
-
-  return { allowed: false, reason: "No matching admin_role or Instructor association" };
+  return { allowed: false, reason: "No admin_role" };
 }

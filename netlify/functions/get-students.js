@@ -390,23 +390,15 @@ function extractPaymentAmount(raw) {
 }
 
 // ============================================================
-// Access check: verify the calling email is authorized to view the
-// student roster for a given program record.
-//
-// Allowed if:
-//   - contact has any non-empty admin_role (admins can view any program)
-//   - OR contact has an "Instructor" or "Teacher" association to this
-//     specific portalId (program-associated leaders)
-//
-// All other contacts are denied. The function tolerates HubSpot API
-// failures by denying access — better to fail closed than to leak data
-// on a transient error.
+// Access check: verify the calling email is an admin of any kind.
+// Simple rule — any non-empty admin_role on the contact grants access
+// to the student list. Everyone else is denied. Fails closed on HubSpot
+// API errors.
 // ============================================================
 async function checkInstructorAccess(email, portalId, OBJECT, headers) {
   const cleanEmail = String(email).toLowerCase().trim();
   if (!cleanEmail) return { allowed: false, reason: "Empty email" };
 
-  // 1. Look up the contact by email + read admin_role.
   let contact;
   try {
     const res = await fetch(
@@ -430,29 +422,8 @@ async function checkInstructorAccess(email, portalId, OBJECT, headers) {
   }
   if (!contact) return { allowed: false, reason: "Contact not found" };
 
-  // 2. Any non-empty admin_role grants access.
   if (String(contact.properties?.admin_role || "").trim()) {
     return { allowed: true, reason: "admin_role" };
   }
-
-  // 3. Otherwise check for Instructor / Teacher association to this portal.
-  try {
-    const assocRes = await fetch(
-      `https://api.hubapi.com/crm/v4/objects/contacts/${contact.id}/associations/${OBJECT}`,
-      { headers }
-    );
-    if (!assocRes.ok) return { allowed: false, reason: `Association lookup HTTP ${assocRes.status}` };
-    const assocData = await assocRes.json();
-    for (const r of assocData.results || []) {
-      if (String(r.toObjectId) !== String(portalId)) continue;
-      const labels = (r.associationTypes || []).map(t => t.label);
-      if (labels.includes("Instructor") || labels.includes("Teacher")) {
-        return { allowed: true, reason: "instructor_or_teacher_association" };
-      }
-    }
-  } catch (err) {
-    return { allowed: false, reason: `Association lookup threw: ${err.message}` };
-  }
-
-  return { allowed: false, reason: "No matching admin_role or association" };
+  return { allowed: false, reason: "No admin_role" };
 }

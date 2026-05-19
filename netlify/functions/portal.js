@@ -59,7 +59,8 @@ export async function handler(event) {
       // frontend keeps every tab on for admin viewing.
       labels = ["Parent", "Student", "Teacher", "Instructor"];
     } else {
-      // Path A: contact-association lookup.
+      // Path A: contact-association lookup. Also pull admin_role so the
+      // instructor-content access gate below can check it.
       const contactRes = await fetch(
         "https://api.hubapi.com/crm/v3/objects/contacts/search",
         {
@@ -72,7 +73,8 @@ export async function handler(event) {
                 operator: "EQ",
                 value: email
               }]
-            }]
+            }],
+            properties: ["admin_role"]
           })
         }
       );
@@ -89,6 +91,9 @@ export async function handler(event) {
 
       const contactData = await contactRes.json();
       const contactId = contactData.results?.[0]?.id;
+      // Capture admin_role for the instructor-content access gate (see
+      // the strip block further down). Empty string when not set.
+      var callerAdminRole = String(contactData.results?.[0]?.properties?.admin_role || "").trim();
 
       console.log("CONTACT ID:", contactId);
 
@@ -318,18 +323,18 @@ export async function handler(event) {
     const tripProps = portal.properties || {};
     const merged = mergeWithGlobalFallback(tripProps, globalProps);
 
-    // ----- Strip instructor-only fields from the response if the caller
-    //       doesn't have instructor access. -----
-    // The Instructor Resources tab is hidden via CSS for non-instructors,
-    // but the rich-text body would otherwise be sent in this same JSON
-    // response and could be revealed by DOM manipulation. Server-side
-    // stripping ensures non-instructors can't see the content even if
-    // they unhide the tile in devtools.
-    //
-    // Admin viewers (adminPortalId path) always retain the field — they
-    // need it for review/QA.
-    const callerIsInstructor = Array.isArray(labels) && labels.includes("Instructor");
-    if (!adminPortalId && !callerIsInstructor) {
+    // ----- Strip instructor-only fields from the response when the
+    //       caller doesn't have an admin_role. -----
+    // Simple, single rule mirroring the frontend: any non-empty
+    // admin_role (Instructor, Admissions Advisor, Admissions Director,
+    // etc.) sees the instructor rich-text body. Everyone else gets it
+    // stripped from the JSON before send, so DOM manipulation has
+    // nothing to surface. Admin viewers (adminPortalId path) always
+    // retain the field — they need it for review/QA.
+    const callerHasAdminRole = !adminPortalId
+      ? !!(typeof callerAdminRole === "string" && callerAdminRole.length > 0)
+      : true; // admin viewing path implicitly has admin access
+    if (!callerHasAdminRole) {
       delete merged.trip_leader_information_content;
     }
 
