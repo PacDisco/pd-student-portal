@@ -1,7 +1,7 @@
 // Bump this string any time you ship a release that should bust the
 // install-time cache for previously-installed PWA users. The activate
 // handler below deletes any cache whose name doesn't match.
-const CACHE_NAME = "pacific-discovery-v30-server-side-gates";
+const CACHE_NAME = "pacific-discovery-v31-tile-injection";
 const STATIC_FILES = ["/index.html", "/login.html", "/site.webmanifest"];
 
 // Install — cache static files

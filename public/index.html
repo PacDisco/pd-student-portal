@@ -1942,13 +1942,15 @@
     FAQs
   </div>
 
-  <div id="tripLeaderTile" class="tile" onclick="loadSection('trip_leader_information_content')">
-    INSTRUCTOR RESOURCES
-  </div>
+  <!-- The INSTRUCTOR RESOURCES (#tripLeaderTile) and INSTRUCTOR PI FOLDER
+       (#teacherTile) tiles are not in the static markup. They are
+       injected by injectInstructorTilesIfAuthorized() in applyVisibility
+       below, but ONLY after the user's association labels + admin_role
+       have been read off the portal response. That way the tiles aren't
+       even visible in view-source unless the user is actually authorized
+       to see them. Server-side endpoints still enforce access in case the
+       client logic is bypassed. -->
 
-  <div id="teacherTile" class="tile" onclick="loadSection('teacher_information_content')">
-    INSTRUCTOR PI FOLDER
-  </div>
 
 </div>
 
@@ -4236,28 +4238,61 @@
   }
 
   function applyVisibility(labels = []) {
+    const viewerAdminRole = (sessionStorage.getItem("adminRole") || "").trim();
     console.log("LABELS:", labels);
-    console.log("INSTRUCTOR CHECK:", labels.includes("Instructor"));
+    console.log("INSTRUCTOR ASSOC CHECK:", labels.includes("Instructor"));
+    console.log("VIEWER ADMIN ROLE:", viewerAdminRole);
     console.log("RAW LABELS JSON:", JSON.stringify(labels));
 
-    if (!labels.includes("Parent") && !labels.includes("Student")) {
-      document.getElementById("familyTile").style.display = "none";
+    // DOCUMENT UPLOADS — visible to every regular (non-admin) user.
+    // Previously this was gated on the "Parent"/"Student" association
+    // label, but in practice students don't always have that label set
+    // on their contact, which incorrectly hid the tile from them. The
+    // server-side function that fetches documents already filters by
+    // email, so widening this to "anyone without an admin_role" is safe.
+    if (viewerAdminRole) {
+      const familyTile = document.getElementById("familyTile");
+      if (familyTile) familyTile.style.display = "none";
     }
 
-    // The leader-resources tile is reserved for contacts associated to the
-    // program with the "Instructor" label (was previously "Trip Leader").
-    if (!labels.includes("Instructor")) {
-      document.getElementById("tripLeaderTile").style.display = "none";
+    // INSTRUCTOR tiles — injected ONLY after we've confirmed the user is
+    // authorized. The static HTML omits both tiles entirely so they
+    // never appear in view-source for unauthorized users, and there's
+    // no flash of hidden content before applyVisibility runs.
+    injectInstructorTilesIfAuthorized(labels, viewerAdminRole);
+  }
+
+  function injectInstructorTilesIfAuthorized(labels = [], viewerAdminRole = "") {
+    const grid = document.querySelector(".grid");
+    if (!grid) return;
+
+    // The admin-view path on /index.html?portalId=... synthesises a full
+    // labels array AND clears the role string. Treat that as "show
+    // everything" so admins reviewing the page see both tiles.
+    const isAdminView = new URLSearchParams(location.search).get("as_admin") === "1";
+    const grantAll = !!isAdminView && !!viewerAdminRole;
+
+    // INSTRUCTOR RESOURCES — program-associated instructor content. Only
+    // shown when the user is associated to this program with the
+    // "Instructor" label (or is admin-viewing).
+    if (grantAll || labels.includes("Instructor")) {
+      grid.insertAdjacentHTML("beforeend", `
+        <div id="tripLeaderTile" class="tile" onclick="loadSection('trip_leader_information_content')">
+          INSTRUCTOR RESOURCES
+        </div>
+      `);
     }
 
-    // INSTRUCTOR PI FOLDER tile — visible at all times to anyone whose
-    // contact admin_role is "Instructor". This is independent of any
-    // program-association label and of the 10-day cutoff that hides
-    // expired programs from the instructor's trip-picker; the PI folder
-    // is global, evergreen instructor content.
-    const viewerAdminRole = (sessionStorage.getItem("adminRole") || "").trim();
-    if (viewerAdminRole !== "Instructor") {
-      document.getElementById("teacherTile").style.display = "none";
+    // INSTRUCTOR PI FOLDER — global instructor content. Only shown when
+    // the user's contact admin_role is exactly "Instructor" (or admin-
+    // viewing). Other admin roles (Admissions Advisor, etc.) don't see
+    // this tile, mirroring the access check on the underlying function.
+    if (grantAll || viewerAdminRole === "Instructor") {
+      grid.insertAdjacentHTML("beforeend", `
+        <div id="teacherTile" class="tile" onclick="loadSection('teacher_information_content')">
+          INSTRUCTOR PI FOLDER
+        </div>
+      `);
     }
   }
 
