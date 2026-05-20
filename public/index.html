@@ -2736,9 +2736,18 @@
   function formatDate(val) {
     if (!val) return '<span class="tbc">TBC</span>';
     const d = new Date(val);
-    return isNaN(d) ? val : d.toLocaleDateString("en-NZ", {
+    if (isNaN(d)) return val;
+    // toLocaleDateString already uses the browser's local timezone by
+    // default — the "en-NZ" locale only controls the *format* (day-of-
+    // week first, day-before-month, 12-hour clock), not the timezone.
+    // So the time/date a user sees here is already converted to their
+    // local wall-clock time. We additionally show the timezone
+    // abbreviation (NZST, PDT, etc.) so users can tell at a glance
+    // which zone the number refers to, instead of guessing.
+    return d.toLocaleDateString("en-NZ", {
       weekday: "long", year: "numeric", month: "long", day: "numeric",
-      hour: "2-digit", minute: "2-digit"
+      hour: "2-digit", minute: "2-digit",
+      timeZoneName: "short"
     });
   }
 
@@ -4266,23 +4275,50 @@
     const grid = document.querySelector(".grid");
     if (!grid) return;
 
-    // Simple, single rule: ANY non-empty admin_role sees both instructor
-    // tiles. Students and parents (no admin_role) never see them.
-    // The server-side endpoints (get-students, get-instructor-files,
-    // portal.js) enforce the same rule so DOM manipulation can't bypass.
+    // Both instructor tiles require a non-empty admin_role. Students and
+    // parents (no admin_role) never see either.
     if (!viewerAdminRole) return;
 
-    grid.insertAdjacentHTML("beforeend", `
-      <div id="tripLeaderTile" class="tile" onclick="loadSection('trip_leader_information_content')">
-        INSTRUCTOR RESOURCES
-      </div>
-    `);
-
+    // INSTRUCTOR PI FOLDER — global, evergreen. Shown to every admin
+    // (independent of program association or end-date).
     grid.insertAdjacentHTML("beforeend", `
       <div id="teacherTile" class="tile" onclick="loadSection('teacher_information_content')">
         INSTRUCTOR PI FOLDER
       </div>
     `);
+
+    // INSTRUCTOR RESOURCES — program-specific. Three required conditions
+    // (in addition to the admin_role check above):
+    //   1. Caller is program-associated as "Instructor"
+    //   2. Program has not ended more than 7 days ago
+    //   3. (Admin-viewing path bypasses both — admins reviewing a trip
+    //      need access regardless of association or recency.)
+    const isAdminView = new URLSearchParams(location.search).get("as_admin") === "1";
+    const isInstructorAssociated = Array.isArray(labels) && labels.includes("Instructor");
+    const endDateOk = isProgramWithinInstructorWindow(
+      portalData?.program_end_date,
+      7 // days past end date that the Instructor Resources tile stays visible
+    );
+    if (isAdminView || (isInstructorAssociated && endDateOk)) {
+      grid.insertAdjacentHTML("beforeend", `
+        <div id="tripLeaderTile" class="tile" onclick="loadSection('trip_leader_information_content')">
+          INSTRUCTOR RESOURCES
+        </div>
+      `);
+    }
+  }
+
+  // Returns true if the program's end_date is either in the future or
+  // within `windowDays` of today. Used to gate the INSTRUCTOR RESOURCES
+  // tile (and the corresponding rich-text strip on the server). Treats
+  // missing / unparseable dates as "in window" so a misconfigured record
+  // doesn't silently hide content from authorized instructors.
+  function isProgramWithinInstructorWindow(endDate, windowDays) {
+    if (!endDate) return true;
+    const t = new Date(endDate).getTime();
+    if (!Number.isFinite(t)) return true;
+    const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000;
+    return t >= cutoff;
   }
 
   function logout() {
