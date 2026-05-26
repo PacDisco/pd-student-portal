@@ -91,15 +91,15 @@ export async function handler(event) {
         const enriched = await Promise.all(allowedIds.map(async (id) => {
           try {
             const r = await fetch(
-              `https://api.hubapi.com/crm/v3/objects/${OBJECT}/${id}?properties=program_name,portal_title,destination`,
+              `https://api.hubapi.com/crm/v3/objects/${OBJECT}/${id}?properties=pacific_discovery_program,program_name,portal_title,destination`,
               { headers: hsHeaders }
             );
             const d = await r.json();
             const p = d.properties || {};
             return {
               id,
-              title:       p.portal_title || p.program_name || "(untitled)",
-              destination: p.destination || "",
+              title:       p.portal_title || p.program_name || p.pacific_discovery_program || "(untitled)",
+              destination: p.pacific_discovery_program || p.destination || "",
             };
           } catch { return { id, title: "(unknown)", destination: "" }; }
         }));
@@ -112,7 +112,16 @@ export async function handler(event) {
     const picked_ = portalId;
 
     // ---- 3. Read the trip's program metadata ----
-    const tripProps = ["program_name", "program_start_date", "program_end_date", "destination", "portal_title"];
+    // `pacific_discovery_program` is the canonical, exact-phrase program
+    // name on the Pacific Discovery custom object (2-58411705). The same
+    // field is read by Forward Business Report. The bridge passes it
+    // through to pd-media unchanged — pd-media field_trips.program must
+    // match this value exactly (case-insensitive, but otherwise verbatim).
+    const tripProps = [
+      "pacific_discovery_program",
+      "program_name", "program_start_date", "program_end_date",
+      "destination", "portal_title",
+    ];
     const tripRes = await fetch(
       `https://api.hubapi.com/crm/v3/objects/${OBJECT}/${picked_}?properties=${tripProps.join(",")}`,
       { headers: hsHeaders }
@@ -121,15 +130,20 @@ export async function handler(event) {
     const tripData  = await tripRes.json();
     const props     = tripData.properties || {};
     const { season, year } = deriveSeasonYear(props);
-    // pd-media's `program` is the natural identifier (e.g. "Bali"). HubSpot's
-    // `destination` is the closest match in most setups; fall back to
-    // program_name if destination is empty.
-    const programName = (props.destination || props.program_name || "").trim();
+    // Authoritative program name. Fall back to other fields only as a
+    // last resort for legacy records that don't have it populated yet.
+    const programName = (
+      props.pacific_discovery_program ||
+      props.destination ||
+      props.program_name ||
+      ""
+    ).trim();
 
     if (!season || !year || !programName) {
       return json(404, {
-        error: "Trip missing date/destination metadata",
-        details: { season, year, destination: programName },
+        error: "Trip missing date or program metadata",
+        details: { season, year, program: programName },
+        hint:   "Set Pacific Discovery Program + Program start date on this Portal record in HubSpot.",
       });
     }
 
