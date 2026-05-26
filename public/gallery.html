@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trip Photos · Pacific Discovery Student Portal</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      background: #f8f8f8;
+      color: #212121;
+    }
+    header {
+      position: relative;
+      padding: 22px 24px;
+      background: #55BBD2;
+      color: white;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 1.5px;
+      font-weight: 600;
+    }
+    header .who {
+      margin-left: auto;
+      font-size: 12px;
+      letter-spacing: 0.6px;
+      opacity: 0.85;
+    }
+    header a.nav, header button.logout {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.4);
+      color: white;
+      font-family: inherit;
+      font-size: 11px;
+      letter-spacing: 1.2px;
+      padding: 7px 14px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+      text-decoration: none;
+      display: inline-block;
+    }
+    header a.nav:hover, header button.logout:hover { background: rgba(255,255,255,0.12); }
+    header .nav-row { display: flex; gap: 8px; align-items: center; margin-left: 16px; }
+
+    main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 80px; }
+
+    .intro {
+      color: #666;
+      font-size: 13px;
+      line-height: 1.55;
+      margin-bottom: 22px;
+    }
+    .empty, .loading, .error {
+      color: #999;
+      font-size: 13px;
+      letter-spacing: 0.4px;
+      padding: 40px 0;
+      text-align: center;
+    }
+    .error { color: #c0392b; }
+
+    /* Trip-picker cards (when user has multiple portals) */
+    .portal-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+      margin-top: 12px;
+    }
+    .portal-card {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-top: 4px solid #59a1aa;
+      padding: 18px 20px 20px;
+      cursor: pointer;
+      text-decoration: none;
+      color: inherit;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      display: block;
+    }
+    .portal-card:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(0,0,0,0.06); }
+    .portal-card-title { font-size: 14px; font-weight: 600; margin: 0 0 6px; letter-spacing: 0.3px; line-height: 1.3; }
+    .portal-card-destination { font-size: 12px; color: #666; margin: 0 0 10px; }
+    .portal-card-cta { margin-top: 14px; font-size: 11px; letter-spacing: 1.5px; font-weight: 600; color: #55BBD2; }
+
+    /* Gallery viewer (single-trip view) */
+    .gallery-shell {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-top: 4px solid #59a1aa;
+      padding: 18px 18px 0;
+    }
+    .gallery-meta { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; margin-bottom: 14px; }
+    .gallery-meta h2 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: 0.4px; }
+    .gallery-meta .sub { font-size: 12px; color: #666; }
+    .gallery-meta .pill { margin-left: auto; font-size: 11px; letter-spacing: 0.6px; color: #59a1aa; }
+    .gallery-frame {
+      width: 100%;
+      height: calc(100vh - 220px);
+      min-height: 480px;
+      border: 0;
+      background: #f8fafc;
+      display: block;
+    }
+    .switch-link {
+      display: inline-block;
+      margin-top: 10px;
+      font-size: 11px;
+      letter-spacing: 1.2px;
+      color: #55BBD2;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .switch-link:hover { text-decoration: underline; }
+
+    @media (max-width: 600px) {
+      header { flex-wrap: wrap; }
+      header .nav-row { margin-left: 0; width: 100%; justify-content: space-between; }
+      header .who { width: 100%; margin-left: 0; margin-top: 4px; opacity: 0.7; }
+      .gallery-frame { height: calc(100vh - 260px); }
+    }
+  </style>
+</head>
+<body>
+<header>
+  <h1>TRIP PHOTOS</h1>
+  <div class="nav-row">
+    <a class="nav" href="/index.html">PORTAL</a>
+    <a class="nav" id="switchTripLink" href="/my-trips.html" style="display:none;">SWITCH TRIP</a>
+    <button class="logout" type="button" onclick="logout()">LOG OUT</button>
+  </div>
+  <div class="who" id="whoami"></div>
+</header>
+<main>
+  <div id="content" class="loading">LOADING PHOTOS…</div>
+</main>
+<script>
+  const email = sessionStorage.getItem("portalEmail");
+  const firstName = sessionStorage.getItem("firstName") || "";
+  const selectedPortalId = sessionStorage.getItem("selectedPortalId") || "";
+
+  // Auth gate (matches my-trips.html / index.html pattern)
+  if (!email) {
+    window.location.href = "/login.html";
+  }
+  if (sessionStorage.getItem("adminRole")) {
+    // Admins view trip media via the staff dashboard, not this family-facing page
+    window.location.href = "/admin.html";
+  }
+
+  document.getElementById("whoami").textContent =
+    [firstName, email].filter(Boolean).join(" · ");
+
+  function logout() {
+    sessionStorage.removeItem("portalEmail");
+    sessionStorage.removeItem("adminRole");
+    sessionStorage.removeItem("firstName");
+    sessionStorage.removeItem("selectedPortalId");
+    window.location.href = "/login.html";
+  }
+
+  function attrEsc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function pickPortal(id) {
+    try { sessionStorage.setItem("selectedPortalId", String(id)); } catch (_) {}
+    location.search = "";
+    location.reload();
+  }
+
+  // Multi-trip picker — same look as my-trips.html
+  function renderPicker(portals) {
+    const c = document.getElementById("content");
+    c.className = "";
+    c.innerHTML = `
+      <p class="intro">Pick a trip to view its photos.</p>
+      <div class="portal-grid">${portals.map(p => `
+        <a class="portal-card" href="javascript:void(0);" onclick="pickPortal('${attrEsc(p.id)}')">
+          <h3 class="portal-card-title">${attrEsc(p.title || "(untitled)")}</h3>
+          ${p.destination ? `<div class="portal-card-destination">${attrEsc(p.destination)}</div>` : ""}
+          <div class="portal-card-cta">VIEW PHOTOS &rsaquo;</div>
+        </a>
+      `).join("")}</div>
+    `;
+  }
+
+  function renderError(msg, hint) {
+    const c = document.getElementById("content");
+    c.className = "error";
+    c.innerHTML = `<div>${attrEsc(msg)}</div>${hint ? `<div style="color:#666;font-size:12px;margin-top:8px;">${attrEsc(hint)}</div>` : ""}`;
+  }
+
+  function renderEmpty(msg) {
+    const c = document.getElementById("content");
+    c.className = "empty";
+    c.textContent = msg;
+  }
+
+  // Single-trip gallery — embeds the pd-media gallery in an iframe so the
+  // signed URL stays inside this page. The token is short-lived (1 hour);
+  // a fresh one is minted on every visit.
+  function renderGallery(payload) {
+    const c = document.getElementById("content");
+    c.className = "";
+    const tripLine = [
+      payload.trip.season && payload.trip.year ? `${payload.trip.season} ${payload.trip.year}` : null,
+      payload.trip.destination,
+    ].filter(Boolean).join(" · ");
+    const count = payload.trip.approved_count || 0;
+    c.innerHTML = `
+      <div class="gallery-shell">
+        <div class="gallery-meta">
+          <h2>${attrEsc(payload.trip.portal_title || payload.trip.program_name || payload.trip.destination || "Trip photos")}</h2>
+          <span class="sub">${attrEsc(tripLine)}</span>
+          <span class="pill">${count} PHOTO${count !== 1 ? "S" : ""}</span>
+        </div>
+        <iframe class="gallery-frame" src="${attrEsc(payload.url)}" title="Trip photos"
+                allowfullscreen
+                sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox"
+                referrerpolicy="no-referrer-when-downgrade"></iframe>
+      </div>
+      <a class="switch-link" href="/my-trips.html">&lsaquo; SWITCH TRIP</a>
+    `;
+  }
+
+  async function loadForPortal(picked) {
+    const url = `/.netlify/functions/get-gallery-link?email=${encodeURIComponent(email)}&picked=${encodeURIComponent(picked)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!res.ok) {
+      if (res.status === 403) {
+        renderError("You don't have access to this trip's photos.");
+      } else if (res.status === 404) {
+        renderEmpty(data.hint || data.error || "No photos available for this trip yet.");
+      } else {
+        renderError(data.error || ("HTTP " + res.status));
+      }
+      return;
+    }
+    renderGallery(data);
+  }
+
+  async function init() {
+    try {
+      // If we already have a selectedPortalId from /my-trips.html, use it.
+      if (selectedPortalId) {
+        document.getElementById("switchTripLink").style.display = "";
+        await loadForPortal(selectedPortalId);
+        return;
+      }
+      // Otherwise let the bridge endpoint figure it out — it handles single,
+      // multi-trip picker, and unauthorized cases in one call.
+      const res = await fetch(`/.netlify/functions/get-gallery-link?email=${encodeURIComponent(email)}`);
+      const data = await res.json();
+      if (!res.ok) {
+        if (res.status === 404) renderEmpty(data.hint || data.error || "No photos available yet.");
+        else renderError(data.error || ("HTTP " + res.status));
+        return;
+      }
+      if (data.requirePicker && Array.isArray(data.portals)) {
+        renderPicker(data.portals);
+        return;
+      }
+      // Single-trip path — bridge returned the gallery URL directly.
+      renderGallery(data);
+    } catch (err) {
+      renderError("Network error: " + (err.message || String(err)));
+    }
+  }
+  init();
+</script>
+</body>
+</html>
