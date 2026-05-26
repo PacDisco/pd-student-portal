@@ -132,12 +132,23 @@ export async function handler(event) {
     const { season, year } = deriveSeasonYear(props);
     // Authoritative program name. Fall back to other fields only as a
     // last resort for legacy records that don't have it populated yet.
-    const programName = (
+    const rawProgram = (
       props.pacific_discovery_program ||
       props.destination ||
       props.program_name ||
       ""
     ).trim();
+
+    // Strip year tokens (2020-2099 etc) so "Bali 2026" matches pd-media's
+    // "Bali". Also strip stray brackets and stranded punctuation so the
+    // input ends up clean even when the year was wrapped in parens or
+    // separated by dashes/commas.
+    const programName = rawProgram
+      .replace(/\b(?:19|20)\d{2}\b/g, "")            // remove 4-digit years
+      .replace(/[()\[\]]/g, "")                       // strip stray brackets
+      .replace(/\s+/g, " ")                            // collapse whitespace
+      .replace(/^[\s\-–—,;:]+|[\s\-–—,;:]+$/g, "")   // trim stranded punctuation
+      .trim();
 
     if (!season || !year || !programName) {
       return json(404, {
