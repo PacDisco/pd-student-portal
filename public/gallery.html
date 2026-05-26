@@ -147,13 +147,11 @@
   const firstName = sessionStorage.getItem("firstName") || "";
   const selectedPortalId = sessionStorage.getItem("selectedPortalId") || "";
 
-  // Auth gate (matches my-trips.html / index.html pattern)
+  // Auth gate (matches my-trips.html / index.html pattern). We deliberately
+  // don't bounce admins out — they can view the family-facing gallery too,
+  // useful for testing and parent-support calls.
   if (!email) {
     window.location.href = "/login.html";
-  }
-  if (sessionStorage.getItem("adminRole")) {
-    // Admins view trip media via the staff dashboard, not this family-facing page
-    window.location.href = "/admin.html";
   }
 
   document.getElementById("whoami").textContent =
