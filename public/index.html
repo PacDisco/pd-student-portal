@@ -2690,7 +2690,7 @@
         const amount = portalData.program_tuition || portalData.price;
         if (amount) {
           document.getElementById("programPrice").innerText =
-            `TUITION: $${parseFloat(amount).toLocaleString()}`;
+            `TUITION: USD $${parseFloat(amount).toLocaleString()}`;
         }
       });
       safeRun("applyVisibility",        () => applyVisibility(portalData.labels));
@@ -2959,7 +2959,7 @@
   }
 
   function paymentsFmtMoney(n) {
-    return `$${parseFloat(n || 0).toLocaleString("en-NZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `USD $${parseFloat(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
   async function loadPayments() {
@@ -3838,7 +3838,7 @@
 
       data.students.forEach(student => {
         const paymentsHtml = student.payments.length
-          ? student.payments.map(p => `<span>$${parseFloat(p.amount).toLocaleString()}</span>`).join("")
+          ? student.payments.map(p => `<span>USD $${parseFloat(p.amount).toLocaleString()}</span>`).join("")
           : "<span>No payments recorded</span>";
 
         const parentsHtml = student.parents.length
@@ -3893,7 +3893,7 @@
           : "";
 
         const paymentsBlock = showPayments
-          ? `<div class="paid-badge">TOTAL PAID: $${student.totalPaid.toLocaleString()}</div>
+          ? `<div class="paid-badge">TOTAL PAID: USD $${student.totalPaid.toLocaleString()}</div>
              <div class="payments-list">${paymentsHtml}</div>`
           : "";
 
