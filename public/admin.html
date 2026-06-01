@@ -196,7 +196,7 @@
     function card(p) {
       const cls = p.associated ? "portal-card" : "portal-card is-other";
       const price = p.price
-        ? `PRICE: $${parseFloat(p.price).toLocaleString()}`
+        ? `PRICE: USD $${parseFloat(p.price).toLocaleString()}`
         : "";
       return `<a class="${cls}" href="/index.html?portalId=${encodeURIComponent(p.id)}&as_admin=1">
         <h3 class="portal-card-title">${attrEsc(p.title || "(untitled)")}</h3>
