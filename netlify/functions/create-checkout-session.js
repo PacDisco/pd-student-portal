@@ -26,12 +26,12 @@
 //
 // Env vars worth knowing:
 //   STRIPE_SECRET_KEY              required
-//   STRIPE_CURRENCY                default "nzd"
+//   STRIPE_CURRENCY                default "usd"
 //   STRIPE_DIRECT_DEBIT_METHODS    comma-separated Stripe payment_method_types
 //                                  for the no-fee path. Defaults to
-//                                  "nz_bank_account" (NZ BECS Direct Debit) —
-//                                  matches Pacific Discovery's NZD currency and a
-//                                  Stripe account that has "NZ BECS Direct
+//                                  "us_bank_account" (US ACH Direct Debit) —
+//                                  matches Pacific Discovery's USD currency and a
+//                                  Stripe account that has "ACH Direct
 //                                  Debit" enabled in Settings → Payment
 //                                  methods. Override if your account has
 //                                  other bank-debit methods enabled. Each
@@ -103,11 +103,11 @@ export async function handler(event) {
     if (paymentType === "card") {
       paymentMethodTypes = ["card"];
     } else {
-      // Default to NZ BECS Direct Debit since Pacific Discovery bills in NZD.
+      // Default to US ACH Direct Debit since Pacific Discovery bills in USD.
       // Override via STRIPE_DIRECT_DEBIT_METHODS if your account has
       // additional bank-debit methods enabled (or if Stripe renames the
       // identifier — they've shifted naming across regions over time).
-      const envList = (process.env.STRIPE_DIRECT_DEBIT_METHODS || "nz_bank_account")
+      const envList = (process.env.STRIPE_DIRECT_DEBIT_METHODS || "us_bank_account")
         .split(",")
         .map(s => s.trim())
         .filter(Boolean);
@@ -129,7 +129,7 @@ export async function handler(event) {
       event.headers?.referer?.split("/").slice(0, 3).join("/") ||
       "https://portal.pacificdiscovery.org";
 
-    const currency = (process.env.STRIPE_CURRENCY || "nzd").toLowerCase();
+    const currency = (process.env.STRIPE_CURRENCY || "usd").toLowerCase();
     const unitAmountCents = Math.round(charge * 100);
 
     const productName = (description && description.trim()) ||
