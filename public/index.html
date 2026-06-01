@@ -2782,7 +2782,12 @@
       if (!val) return false;
       const d = new Date(val);
       if (isNaN(d.getTime())) return false;
-      return d.getTime() < Date.now();
+      // Treat the event as "passed" only AFTER the end of its calendar day
+      // (viewer's local time), so the live meeting link stays visible during
+      // the session and the rest of that day instead of vanishing the moment
+      // the start time ticks over.
+      const endOfDay = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+      return endOfDay.getTime() < Date.now();
     }
 
     const events = [
