@@ -175,7 +175,7 @@
       return;
     }
     c.innerHTML = `<div class="portal-grid">${portals.map(p => {
-      const price = p.price ? `PRICE: $${parseFloat(p.price).toLocaleString()}` : "";
+      const price = p.price ? `PRICE: USD $${parseFloat(p.price).toLocaleString()}` : "";
       return `<a class="portal-card" href="javascript:void(0);" onclick="pickPortal('${attrEsc(p.id)}')">
         <h3 class="portal-card-title">${attrEsc(p.title || "(untitled)")}</h3>
         ${p.destination ? `<div class="portal-card-destination">${attrEsc(p.destination)}</div>` : ""}
