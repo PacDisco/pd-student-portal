@@ -721,6 +721,53 @@
       .app-modal-content { max-height: 100vh; }
     }
 
+    /* FAST FACTS CARDS — printable 5x7 participant cards (preview + print) */
+    .ff-modal-content { max-width: 780px; width: 96vw; }
+    .ff-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 6px;
+    }
+    .ff-count { font-size: 11px; letter-spacing: 1.2px; color: #999; text-transform: uppercase; }
+    .ff-print-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 9px 18px; background: #3B5998; color: #fff; border: none;
+      border-radius: 4px; font-size: 11px; font-weight: 600; letter-spacing: 1.3px;
+      cursor: pointer; transition: opacity 0.2s ease;
+    }
+    .ff-print-btn:hover { opacity: 0.85; }
+    .ff-print-btn:disabled { opacity: 0.5; cursor: default; }
+    .ff-hint { font-size: 11px; color: #999; margin: 0 0 16px; }
+    .ff-preview { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; overflow-x: auto; }
+
+    /* One physical 5x7 card, landscape: 7in wide x 4.7in tall. */
+    .ff-card {
+      box-sizing: border-box; width: 7in; height: 4.7in; flex: 0 0 auto;
+      border: 1px dashed #9aa3b2; padding: 0.22in 0.26in; background: #fff;
+      color: #1a1a1a; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden;
+    }
+    .ff-card-head {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+      border-bottom: 2px solid #3B5998; padding-bottom: 6px; margin-bottom: 8px;
+    }
+    .ff-id { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .ff-photo { width: 0.86in; height: 0.86in; object-fit: cover; border: 1px solid #ccc; flex: 0 0 auto; background: #eee; }
+    .ff-name { font-size: 15pt; font-weight: 700; line-height: 1.05; }
+    .ff-sub { font-size: 8.5pt; color: #555; margin-top: 2px; }
+    .ff-cardno { text-align: right; flex: 0 0 auto; }
+    .ff-cardno .n { font-size: 8pt; letter-spacing: 1px; color: #3B5998; font-weight: 700; }
+    .ff-section { font-size: 8pt; letter-spacing: 1px; color: #777; text-transform: uppercase; margin-top: 3px; }
+    .ff-grid { columns: 2; column-gap: 0.34in; font-size: 9pt; line-height: 1.3; }
+    .ff-item { break-inside: avoid; margin-bottom: 4px; }
+    .ff-k { color: #555; }
+    .ff-v { font-weight: 600; }
+    .ff-v.yes { color: #b00020; }
+    .ff-v.empty { color: #b0b0b0; font-weight: 400; }
+    .ff-detail { display: block; font-weight: 400; color: #333; font-size: 8.5pt; }
+
     /* EXPEDITION CARDS */
     .expedition-grid {
       display: grid;
@@ -1993,6 +2040,22 @@
   </div>
 </div>
 
+<div id="fastFactsModal" class="app-modal" hidden>
+  <div class="app-modal-backdrop" onclick="closeFastFactsModal()"></div>
+  <div class="app-modal-content ff-modal-content" role="dialog" aria-modal="true" aria-labelledby="fastFactsTitle">
+    <div class="app-modal-header">
+      <div>
+        <h2 id="fastFactsTitle">FAST FACTS CARDS</h2>
+        <span id="fastFactsSubject" class="app-modal-subject"></span>
+      </div>
+      <button class="app-modal-close" type="button" onclick="closeFastFactsModal()" aria-label="Close">&times;</button>
+    </div>
+    <div id="fastFactsBody" class="app-modal-body">
+      <div class="application-detail-empty">LOADING…</div>
+    </div>
+  </div>
+</div>
+
 <script>
   const email = sessionStorage.getItem("portalEmail");
   if (!email) window.location.href = "/login.html";
@@ -3244,6 +3307,16 @@
         //   3. The student list, with each card opening a Medical
         //      Information modal (filtered subset of the application form).
         content.innerHTML = `<div class="docs-section">
+            <div class="docs-section-label">FAST FACTS</div>
+            <div class="tl-link-grid">
+              <div class="tl-link-card">
+                <div class="tl-link-title">FAST FACTS CARDS</div>
+                <div class="tl-link-meta">Printable 5×7 cards · one set per participant</div>
+                <button type="button" class="tl-link-btn" onclick="openFastFactsModal()">VIEW / PRINT CARDS</button>
+              </div>
+            </div>
+          </div>
+          <div class="docs-section">
             <div class="docs-section-label">INSTRUCTOR FILES</div>
             <div id="instructorFilesContainer"><span style="font-size:13px; color:#999;">Loading files...</span></div>
           </div>` + (portalData[field] || "");
@@ -4158,6 +4231,287 @@
     if (e.key === "Escape") {
       const modal = document.getElementById("appModal");
       if (modal && !modal.hidden) closeApplicationModal();
+    }
+  });
+
+  // ===========================================================================
+  // FAST FACTS SHEET
+  // Pulls every Student attached to THIS program (same source as the student
+  // list on this tab), one row per participant, ~55 columns sourced from each
+  // student's most recent Jotform application submission. Renders a scrollable
+  // preview and offers an Excel (.xlsx) download built client-side via SheetJS.
+  // ===========================================================================
+  let __ffData = null; // last fetched payload, reused by the download button
+
+  async function openFastFactsModal() {
+    const modal = document.getElementById("fastFactsModal");
+    const body = document.getElementById("fastFactsBody");
+    const subject = document.getElementById("fastFactsSubject");
+    if (!modal || !body) return;
+
+    __ffData = null;
+    if (subject) subject.textContent = "";
+    body.innerHTML = `<div class="application-detail-empty">LOADING PARTICIPANTS…</div>`;
+    modal.hidden = false;
+    document.body.style.overflow = "hidden";
+
+    const portalId = portalData.hs_object_id;
+    const callerEmail = sessionStorage.getItem("portalEmail") || "";
+
+    if (!portalId) {
+      body.innerHTML = `<div class="application-detail-empty">No program is loaded.</div>`;
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `/.netlify/functions/get-fast-facts?portalId=${encodeURIComponent(portalId)}&email=${encodeURIComponent(callerEmail)}`
+      );
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        let detail = `HTTP ${res.status}`;
+        try {
+          const j = JSON.parse(text);
+          if (j && (j.error || j.details)) detail += `: ${j.error || ""}${j.details ? ` — ${j.details}` : ""}`;
+        } catch (_) {
+          if (text) detail += `: ${text.slice(0, 200)}`;
+        }
+        body.innerHTML = `<div class="application-detail-empty">Could not load the Fast Facts Sheet.<br><small style="color:#999; font-size:11px;">${attrEsc(detail)}</small></div>`;
+        return;
+      }
+      const data = await res.json();
+      __ffData = data;
+      body.innerHTML = renderFastFacts(data);
+    } catch (err) {
+      console.error("Fast Facts fetch error:", err);
+      body.innerHTML = `<div class="application-detail-empty">Could not load the Fast Facts Sheet.<br><small style="color:#999; font-size:11px;">${attrEsc(err.message || String(err))}</small></div>`;
+    }
+  }
+
+  function closeFastFactsModal() {
+    const modal = document.getElementById("fastFactsModal");
+    if (modal) modal.hidden = true;
+    document.body.style.overflow = "";
+  }
+
+  // Curated card layout. Each participant gets this fixed set of cards, in
+  // order; every card carries the participant's name + number so a shuffled
+  // stack can be regrouped. `kind`: "plain" | "yesno" (Yes is flagged red) |
+  // "detail" (the free-text follow-up to a yes/no question — only shown when
+  // it has content). Short labels keep each card legible at 5x7.
+  const FF_SECTIONS = [
+    { title: "Identity & Emergency Contacts", items: [
+      ["I like to be called", "Goes by", "plain"],
+      ["Pronouns", "Pronouns", "plain"],
+      ["Gender", "Gender", "plain"],
+      ["Date of birth", "DOB", "plain"],
+      ["Participant's mobile number", "Mobile", "plain"],
+      ["Participant's email", "Email", "plain"],
+      ["What is your passport number?", "Passport #", "plain"],
+      ["What country's passport do you hold?", "Passport country", "plain"],
+      ["Please choose your t-shirt size", "T-shirt", "plain"],
+      ["Primary parent or guardian name", "Primary guardian", "plain"],
+      ["Primary parent or guardian relationship to you", "↳ relationship", "plain"],
+      ["Primary parent or guardian phone number", "↳ phone", "plain"],
+      ["Primary parent or guardian email", "↳ email", "plain"],
+      ["Primary parent or guardian country", "↳ country", "plain"],
+      ["Secondary parent or guardian name", "Secondary guardian", "plain"],
+      ["Secondary parent or guardian relationship to you", "↳ relationship", "plain"],
+      ["Secondary parent or guardian phone number", "↳ phone", "plain"],
+      ["Secondary parent or guardian email", "↳ email", "plain"]
+    ]},
+    { title: "Vitals & Medical", items: [
+      ["Height (Feet & Inches)", "Height", "plain"],
+      ["Weight (lbs)", "Weight", "plain"],
+      ["What is your swimming ability?", "Swimming", "plain"],
+      ["What is your biking ability?", "Biking", "plain"],
+      ["Are you a smoker?", "Smoker", "yesno"],
+      ["Do you have any respiratory problems? e.g. Asthma", "Respiratory / asthma", "yesno"],
+      ["Additional info (respiratory)", "", "detail"],
+      ["Do you get migraines?", "Migraines", "yesno"],
+      ["Do you have any skin disorders?", "Skin disorders", "yesno"],
+      ["Additional info (skin)", "", "detail"],
+      ["Do you have muscular-skeletal problems?", "Muscular-skeletal", "yesno"],
+      ["Additional info (muscular-skeletal)", "", "detail"],
+      ["Do you have Diabetes?", "Diabetes", "yesno"],
+      ["Additional info (diabetes)", "", "detail"],
+      ["Do you have Claustrophobia or get motion sickness?", "Claustrophobia / motion sickness", "yesno"],
+      ["Additional info (claustrophobia/motion sickness)", "", "detail"],
+      ["Do you have any of the following conditions: autism, adhd, a learning disability (e.g., dyslexia, dyscalculia) or any other neurodevelopmental condition?", "Neurodevelopmental (autism/ADHD/LD)", "yesno"],
+      ["Additional info (neurodevelopmental)", "", "detail"]
+    ]},
+    { title: "Allergies, Diet, Wellbeing & Meds", items: [
+      ["Do you have any allergies?", "Allergies", "yesno"],
+      ["Additional info (allergies)", "", "detail"],
+      ["Do you have any dietary requirements or preferences? e.g. Gluten, Dairy, Nuts, Vegetarian, etc.", "Dietary needs", "yesno"],
+      ["Additional info (dietary)", "", "detail"],
+      ["Have you been seen by a mental health professional more than once in the past two years?", "Seen mental-health pro (2 yrs)", "yesno"],
+      ["Additional info (mental health)", "", "detail"],
+      ["Have you ever been or are you currently being treated for substance abuse?", "Substance-abuse treatment", "yesno"],
+      ["Additional info (substance abuse)", "", "detail"],
+      ["Do you have any physical, psychological or chronic condition that may impact your participation in physical activities?", "Condition affecting activity", "yesno"],
+      ["Additional info (physical/psychological condition)", "", "detail"],
+      ["Have you been hospitalized in the past three years?", "Hospitalized (3 yrs)", "yesno"],
+      ["Additional info (hospitalized)", "", "detail"],
+      ["Are you fully vaccinated for Covid-19?", "Covid vaccinated", "yesno"],
+      ["Please list any medications you currently take, or will be taking on program", "Medications", "plain"],
+      ["Is there anything else you think we should know?", "Other notes", "plain"]
+    ]}
+  ];
+
+  // Self-contained CSS for the print window (about:blank has no access to the
+  // app stylesheet). Values mirror the .ff-card rules in the main stylesheet
+  // so the on-screen preview and the printed cards look identical.
+  const FF_PRINT_CSS = `
+    @page { size: 8.5in 11in; margin: 0.5in; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; font-family: -apple-system,"Segoe UI",Roboto,sans-serif; }
+    .ff-page { page-break-after: always; display: flex; flex-direction: column; gap: 0.3in; }
+    .ff-page:last-child { page-break-after: auto; }
+    .ff-card { width: 7in; height: 4.7in; border: 1px dashed #9aa3b2; padding: 0.22in 0.26in; background: #fff; color: #1a1a1a; overflow: hidden; }
+    .ff-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; border-bottom: 2px solid #3B5998; padding-bottom: 6px; margin-bottom: 8px; }
+    .ff-id { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .ff-photo { width: 0.86in; height: 0.86in; object-fit: cover; border: 1px solid #ccc; flex: 0 0 auto; }
+    .ff-name { font-size: 15pt; font-weight: 700; line-height: 1.05; }
+    .ff-sub { font-size: 8.5pt; color: #555; margin-top: 2px; }
+    .ff-cardno { text-align: right; flex: 0 0 auto; }
+    .ff-cardno .n { font-size: 8pt; letter-spacing: 1px; color: #3B5998; font-weight: 700; }
+    .ff-section { font-size: 8pt; letter-spacing: 1px; color: #777; text-transform: uppercase; margin-top: 3px; }
+    .ff-grid { columns: 2; column-gap: 0.34in; font-size: 9pt; line-height: 1.3; }
+    .ff-item { break-inside: avoid; margin-bottom: 4px; }
+    .ff-k { color: #555; }
+    .ff-v { font-weight: 600; }
+    .ff-v.yes { color: #b00020; }
+    .ff-v.empty { color: #b0b0b0; font-weight: 400; }
+    .ff-detail { display: block; font-weight: 400; color: #333; font-size: 8.5pt; }
+  `;
+
+  // Make a portrait URL absolute so it still resolves inside the print window
+  // (whose document URL is about:blank, where "/document-proxy…" wouldn't).
+  function ffAbs(url) {
+    if (!url) return "";
+    return /^https?:/i.test(url) ? url : (location.origin + url);
+  }
+
+  function ffItemHtml(row, header, label, kind) {
+    const raw = (row.cells?.[header] ?? "").toString().trim();
+    if (kind === "detail") {
+      if (!raw) return "";
+      return `<div class="ff-item"><span class="ff-detail">↳ ${attrEsc(raw)}</span></div>`;
+    }
+    let vClass = "ff-v";
+    let disp = raw;
+    if (!raw) { vClass += " empty"; disp = "—"; }
+    else if (kind === "yesno" && /^yes$/i.test(raw)) { vClass += " yes"; }
+    return `<div class="ff-item"><span class="ff-k">${attrEsc(label)}:</span> <span class="${vClass}">${attrEsc(disp)}</span></div>`;
+  }
+
+  function ffCardHtml(row, section, cardNo, cardTotal, participantNo) {
+    const name = (row.cells?.["Name"] || "(no name)").toString();
+    const noForm = !row._matched;
+    const photo = (cardNo === 1 && row._portrait)
+      ? `<img class="ff-photo" src="${attrEsc(ffAbs(row._portrait))}" alt="" onerror="this.style.display='none'">`
+      : "";
+    const items = section.items.map(([h, l, k]) => ffItemHtml(row, h, l, k)).join("");
+    return `
+      <div class="ff-card">
+        <div class="ff-card-head">
+          <div class="ff-id">
+            ${photo}
+            <div>
+              <div class="ff-name">${attrEsc(name)}</div>
+              <div class="ff-sub">Participant #${participantNo}${noForm ? " · NO FORM ON FILE" : ""}</div>
+            </div>
+          </div>
+          <div class="ff-cardno">
+            <div class="n">CARD ${cardNo}/${cardTotal}</div>
+            <div class="ff-section">${attrEsc(section.title)}</div>
+          </div>
+        </div>
+        <div class="ff-grid">${items}</div>
+      </div>`;
+  }
+
+  // Flat array of every card (all participants, all sections), in print order.
+  function buildFastFactsCards(data) {
+    const rows = Array.isArray(data?.rows) ? data.rows : [];
+    const total = FF_SECTIONS.length;
+    const cards = [];
+    rows.forEach((row, i) => {
+      FF_SECTIONS.forEach((section, s) => {
+        cards.push(ffCardHtml(row, section, s + 1, total, i + 1));
+      });
+    });
+    return cards;
+  }
+
+  function renderFastFacts(data) {
+    if (!data || data.error) {
+      return `<div class="application-detail-empty">Could not load Fast Facts${data?.error ? `: ${attrEsc(data.error)}` : ""}.</div>`;
+    }
+    const rows = Array.isArray(data.rows) ? data.rows : [];
+    if (rows.length === 0) {
+      return `<div class="application-detail-empty">No participants are attached to this program yet.</div>`;
+    }
+
+    const total = data.counts?.total ?? rows.length;
+    const withSub = data.counts?.withSubmission ?? rows.filter(r => r._matched).length;
+    const cards = buildFastFactsCards(data);
+
+    const warn = data.warning
+      ? `<div class="app-modal-meta" style="color:#b45309;">Note: ${attrEsc(data.warning)}</div>`
+      : "";
+
+    return `
+      ${warn}
+      <div class="ff-toolbar">
+        <span class="ff-count">${total} participant${total === 1 ? "" : "s"} · ${withSub} with a submitted form · ${cards.length} cards</span>
+        <button type="button" class="ff-print-btn" onclick="printFastFactsCards()">🖨 PRINT / SAVE AS PDF</button>
+      </div>
+      <div class="ff-hint">Cards print 2-up on Letter paper — set the print dialog to Letter, then cut along the dashed lines (or “Save as PDF”).</div>
+      <div class="ff-preview">${cards.join("")}</div>`;
+  }
+
+  // Open a clean print window with the cards laid out two-per-Letter-page and
+  // trigger the print dialog (where the user can Save as PDF or print to
+  // cardstock). Kept in a separate document so the rest of the portal UI
+  // never ends up in the print output.
+  function printFastFactsCards() {
+    if (!__ffData) return;
+    const cards = buildFastFactsCards(__ffData);
+    if (cards.length === 0) return;
+
+    let pages = "";
+    for (let i = 0; i < cards.length; i += 2) {
+      pages += `<div class="ff-page">${cards[i]}${cards[i + 1] || ""}</div>`;
+    }
+
+    const w = window.open("", "_blank");
+    if (!w) {
+      alert("Please allow pop-ups for this site to print the Fast Facts cards.");
+      return;
+    }
+    w.document.open();
+    w.document.write(
+      `<!doctype html><html><head><meta charset="utf-8">` +
+      `<title>Fast Facts Cards</title><style>${FF_PRINT_CSS}</style></head>` +
+      `<body>${pages}</body></html>`
+    );
+    w.document.close();
+
+    let printed = false;
+    const doPrint = () => { if (printed) return; printed = true; try { w.focus(); w.print(); } catch (e) {} };
+    // Print once the window (incl. portrait images) has loaded; fall back to a
+    // timer in case onload doesn't fire for the written document.
+    w.onload = () => setTimeout(doPrint, 350);
+    setTimeout(doPrint, 1800);
+  }
+
+  // ESC closes the Fast Facts modal too
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      const modal = document.getElementById("fastFactsModal");
+      if (modal && !modal.hidden) closeFastFactsModal();
     }
   });
 
