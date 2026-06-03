@@ -4616,13 +4616,17 @@
     console.log("VIEWER ADMIN ROLE:", viewerAdminRole);
     console.log("RAW LABELS JSON:", JSON.stringify(labels));
 
-    // DOCUMENT UPLOADS — visible to every regular (non-admin) user.
+    // DOCUMENT UPLOADS — visible to everyone EXCEPT instructors.
     // Previously this was gated on the "Parent"/"Student" association
     // label, but in practice students don't always have that label set
     // on their contact, which incorrectly hid the tile from them. The
     // server-side function that fetches documents already filters by
-    // email, so widening this to "anyone without an admin_role" is safe.
-    if (viewerAdminRole) {
+    // email, so widening this to "everyone but instructors" is safe.
+    // NOTE: only the "Instructor" admin_role should be hidden here —
+    // other admin roles (Admissions Advisor, Admissions Director, etc.)
+    // must still see the tile. Gating on `viewerAdminRole` being truthy
+    // hid it from ALL admins, which was the bug.
+    if (viewerAdminRole === "Instructor") {
       const familyTile = document.getElementById("familyTile");
       if (familyTile) familyTile.style.display = "none";
     }
