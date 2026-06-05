@@ -4423,13 +4423,15 @@
     return `<div class="ff-item"><span class="ff-k">${attrEsc(label)}:</span> <span class="${vClass}">${attrEsc(disp)}</span></div>`;
   }
 
-  function ffCardHtml(row, section, cardNo, cardTotal, participantNo) {
+  // Render one card from a pre-built body. Section title gets a "(cont.)"
+  // suffix on continuation cards (used by the paginated Student Bio section).
+  function ffCardHtml(row, sectionTitle, cont, cardNo, cardTotal, participantNo, bodyHtml) {
     const name = (row.cells?.["Name"] || "(no name)").toString();
     const noForm = !row._matched;
     const photo = (cardNo === 1 && row._portrait)
       ? `<img class="ff-photo" src="${attrEsc(ffAbs(row._portrait))}" alt="" onerror="this.style.display='none'">`
       : "";
-    const items = section.items.map(([h, l, k]) => ffItemHtml(row, h, l, k)).join("");
+    const title = cont ? `${sectionTitle} (cont.)` : sectionTitle;
     return `
       <div class="ff-card">
         <div class="ff-card-head">
@@ -4442,21 +4444,137 @@
           </div>
           <div class="ff-cardno">
             <div class="n">CARD ${cardNo}/${cardTotal}</div>
-            <div class="ff-section">${attrEsc(section.title)}</div>
+            <div class="ff-section">${attrEsc(title)}</div>
           </div>
         </div>
-        <div class="ff-grid">${items}</div>
+        <div class="ff-grid">${bodyHtml}</div>
       </div>`;
   }
 
+  // The section whose free-text content is paginated across as many cards as
+  // it needs (matches the FF_SECTIONS title).
+  const FF_BIO_TITLE = "Student Bio";
+
+  // One bold-label note item (also used by ffItemHtml's "note" kind). `cont`
+  // marks a field that continues from the previous card.
+  function ffNoteItemHtml(label, text, cont) {
+    const lab = cont ? `${label} (cont.):` : `${label}:`;
+    const flow = "break-inside:auto;-webkit-column-break-inside:auto;page-break-inside:auto;";
+    return `<div class="ff-item" style="${flow}">`
+      + `<span style="font-weight:700;color:#1a1a1a;">${attrEsc(lab)}</span> `
+      + `<span style="font-weight:400;color:#333;">${attrEsc(text)}</span></div>`;
+  }
+
+  // Hidden, off-screen card used purely to measure how much bio text fits.
+  // Rendered in the live document so it inherits the same .ff-card CSS the
+  // preview uses (which the print window's CSS mirrors), keeping screen and
+  // print pagination identical.
+  function ffMeasureHost() {
+    let host = document.getElementById("ff-measure-host");
+    if (!host) {
+      host = document.createElement("div");
+      host.id = "ff-measure-host";
+      host.style.cssText = "position:absolute;left:-99999px;top:0;width:8in;visibility:hidden;pointer-events:none;";
+      document.body.appendChild(host);
+    }
+    return host;
+  }
+
+  // Split the Student Bio section into one or more card bodies, each sized to
+  // fit a single card. Long fields are split mid-text onto continuation cards.
+  function ffPaginateBio(row, section, participantNo) {
+    // Non-empty fields only; if all are blank, fall back to one card of dashes.
+    const fields = section.items
+      .map(([h, l]) => ({ label: l, words: (row.cells?.[h] ?? "").toString().trim().split(/\s+/).filter(Boolean) }))
+      .filter(f => f.words.length);
+    if (fields.length === 0) {
+      return [section.items.map(([h, l, k]) => ffItemHtml(row, h, l, k)).join("")];
+    }
+
+    const host = ffMeasureHost();
+    host.innerHTML = ffCardHtml(row, section.title, false, 1, 1, participantNo, "");
+    const card = host.firstElementChild;
+    const head = card.querySelector(".ff-card-head");
+    const grid = card.querySelector(".ff-grid");
+    const cs = getComputedStyle(card);
+    const avail = card.clientHeight
+      - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom)
+      - head.offsetHeight - 4; // small safety margin against rounding
+    grid.style.height = Math.max(40, avail) + "px";
+    grid.style.overflow = "hidden";
+    grid.style.columnFill = "auto";
+    grid.innerHTML = "";
+
+    const overflowed = () => grid.scrollWidth > grid.clientWidth + 1;
+
+    const bodies = [];
+    let curHtml = "";
+
+    for (const f of fields) {
+      let words = f.words;
+      let cont = false;
+      while (words.length) {
+        // Try the whole remaining piece first.
+        grid.insertAdjacentHTML("beforeend", ffNoteItemHtml(f.label, words.join(" "), cont));
+        if (!overflowed()) {
+          curHtml += ffNoteItemHtml(f.label, words.join(" "), cont);
+          words = [];
+          break;
+        }
+        grid.lastElementChild.remove();
+
+        // Binary-search the largest word-prefix that still fits.
+        let lo = 1, hi = words.length, fit = 0;
+        while (lo <= hi) {
+          const mid = (lo + hi) >> 1;
+          grid.insertAdjacentHTML("beforeend", ffNoteItemHtml(f.label, words.slice(0, mid).join(" "), cont));
+          const ov = overflowed();
+          grid.lastElementChild.remove();
+          if (ov) hi = mid - 1; else { fit = mid; lo = mid + 1; }
+        }
+
+        if (fit === 0) {
+          // Nothing fits on the current (already-filled) card → flush & retry.
+          if (curHtml) { bodies.push(curHtml); curHtml = ""; grid.innerHTML = ""; continue; }
+          fit = 1; // empty card can't fit even one word — force progress
+        }
+
+        const piece = ffNoteItemHtml(f.label, words.slice(0, fit).join(" "), cont);
+        grid.insertAdjacentHTML("beforeend", piece);
+        curHtml += piece;
+        bodies.push(curHtml);          // card is now full
+        curHtml = "";
+        grid.innerHTML = "";
+        words = words.slice(fit);
+        cont = true;                   // remainder continues on next card
+      }
+    }
+    if (curHtml) bodies.push(curHtml);
+    host.innerHTML = "";
+    return bodies.length ? bodies : [""];
+  }
+
   // Flat array of every card (all participants, all sections), in print order.
+  // Most sections are exactly one card; the Student Bio section is paginated
+  // to as many cards as its free-text content needs.
   function buildFastFactsCards(data) {
     const rows = Array.isArray(data?.rows) ? data.rows : [];
-    const total = FF_SECTIONS.length;
     const cards = [];
     rows.forEach((row, i) => {
-      FF_SECTIONS.forEach((section, s) => {
-        cards.push(ffCardHtml(row, section, s + 1, total, i + 1));
+      const parts = [];
+      FF_SECTIONS.forEach((section) => {
+        if (section.title === FF_BIO_TITLE) {
+          ffPaginateBio(row, section, i + 1).forEach((body, bi) => {
+            parts.push({ title: section.title, body, cont: bi > 0 });
+          });
+        } else {
+          const items = section.items.map(([h, l, k]) => ffItemHtml(row, h, l, k)).join("");
+          parts.push({ title: section.title, body: items, cont: false });
+        }
+      });
+      const total = parts.length;
+      parts.forEach((p, idx) => {
+        cards.push(ffCardHtml(row, p.title, p.cont, idx + 1, total, i + 1, p.body));
       });
     });
     return cards;
