@@ -179,6 +179,13 @@ export async function handler(event) {
       if (!cells["Name"]) cells["Name"] = student.name || "";
       if (!cells["Participant's email"]) cells["Participant's email"] = student.email || "";
 
+      // Student Bio — sourced from the HubSpot contact, not Jotform. These
+      // keys live alongside the form-derived cells but are intentionally NOT
+      // in COLUMNS, so they appear only on the cards (not in the column list).
+      cells["Health and Dietary Information"] = student.healthAndDietary || "";
+      cells["Travel and Program Motivations"] = student.travelMotivations || "";
+      cells["Interview and Instructor Notes"] = student.interviewNotes || "";
+
       // Portrait for the ID card — pulled from the same submission we already
       // have, routed through the /document-proxy edge function so it loads in
       // the browser without a Jotform login (and isn't capped at 6MB).
@@ -239,7 +246,14 @@ async function fetchPortalStudents(portalId, headers) {
       headers,
       body: JSON.stringify({
         inputs: studentIds.map(id => ({ id: String(id) })),
-        properties: ["firstname", "lastname", "email"]
+        properties: [
+          "firstname", "lastname", "email",
+          // Student Bio fields, read straight off the HubSpot contact (not
+          // from Jotform). Surfaced on the "Student Bio" Fast Facts card.
+          "health_and_dietary_information",
+          "travel_and_program_motivations",
+          "interview_and_instructor_notes"
+        ]
       })
     }
   );
@@ -249,7 +263,10 @@ async function fetchPortalStudents(portalId, headers) {
   return (studentsData.results || []).map(s => ({
     id: s.id,
     name: `${s.properties.firstname || ""} ${s.properties.lastname || ""}`.trim(),
-    email: s.properties.email || ""
+    email: s.properties.email || "",
+    healthAndDietary: (s.properties.health_and_dietary_information || "").trim(),
+    travelMotivations: (s.properties.travel_and_program_motivations || "").trim(),
+    interviewNotes: (s.properties.interview_and_instructor_notes || "").trim()
   }));
 }
 
