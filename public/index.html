@@ -4358,9 +4358,9 @@
       ["Is there anything else you think we should know?", "Other notes", "plain"]
     ]},
     { title: "Student Bio", items: [
-      ["Health and Dietary Information", "Health & dietary", "plain"],
-      ["Travel and Program Motivations", "Travel & motivations", "plain"],
-      ["Interview and Instructor Notes", "Interview / instructor notes", "plain"]
+      ["Health and Dietary Information", "Health & dietary", "note"],
+      ["Travel and Program Motivations", "Travel & motivations", "note"],
+      ["Interview and Instructor Notes", "Interview / instructor notes", "note"]
     ]}
   ];
 
@@ -4403,6 +4403,14 @@
     if (kind === "detail") {
       if (!raw) return "";
       return `<div class="ff-item"><span class="ff-detail">↳ ${attrEsc(raw)}</span></div>`;
+    }
+    // "note" — long free-text bio fields. Bold label, normal-weight body text
+    // (the reverse of the plain key/value styling) so the prose stays legible.
+    // Inline styles so it renders the same in the preview and the print window.
+    if (kind === "note") {
+      const disp = raw ? attrEsc(raw) : "—";
+      const vStyle = raw ? "font-weight:400;color:#333;" : "font-weight:400;color:#b0b0b0;";
+      return `<div class="ff-item"><span style="font-weight:700;color:#1a1a1a;">${attrEsc(label)}:</span> <span style="${vStyle}">${disp}</span></div>`;
     }
     let vClass = "ff-v";
     let disp = raw;
