@@ -264,9 +264,11 @@ async function fetchPortalStudents(portalId, headers) {
     id: s.id,
     name: `${s.properties.firstname || ""} ${s.properties.lastname || ""}`.trim(),
     email: s.properties.email || "",
-    healthAndDietary: (s.properties.health_and_dietary_information || "").trim(),
-    travelMotivations: (s.properties.travel_and_program_motivations || "").trim(),
-    interviewNotes: (s.properties.interview_and_instructor_notes || "").trim()
+    // These three are HubSpot rich-text properties (stored as HTML), so strip
+    // the markup down to readable plain text before it reaches the cards.
+    healthAndDietary: richTextToPlain(s.properties.health_and_dietary_information),
+    travelMotivations: richTextToPlain(s.properties.travel_and_program_motivations),
+    interviewNotes: richTextToPlain(s.properties.interview_and_instructor_notes)
   }));
 }
 
@@ -415,6 +417,32 @@ function findAdditionalInfo(ordered, byLabel, parentHeader) {
 function hasValue(field) {
   const v = formatAnswer(field);
   return v != null && v !== "";
+}
+
+// HubSpot rich-text contact properties are stored as HTML. The Fast Facts
+// cards display plain text (and the renderer HTML-escapes whatever we send, so
+// raw tags would show literally). Convert to readable text: turn line-break
+// and block-boundary tags into spaces, drop every remaining tag, decode the
+// handful of entities HubSpot emits, then collapse whitespace.
+function richTextToPlain(html) {
+  if (html == null) return "";
+  let s = String(html);
+  s = s
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<\/(p|div|li|h[1-6]|tr|ul|ol|blockquote)\s*>/gi, " ")
+    .replace(/<[^>]+>/g, "");
+  s = s
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#0?39;|&apos;/gi, "'")
+    .replace(/&#(\d+);/g, (_, n) => {
+      const code = parseInt(n, 10);
+      return Number.isFinite(code) ? String.fromCodePoint(code) : "";
+    });
+  return s.replace(/\s+/g, " ").trim();
 }
 
 function normLabel(s) {
