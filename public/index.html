@@ -4410,7 +4410,11 @@
     if (kind === "note") {
       const disp = raw ? attrEsc(raw) : "—";
       const vStyle = raw ? "font-weight:400;color:#333;" : "font-weight:400;color:#b0b0b0;";
-      return `<div class="ff-item"><span style="font-weight:700;color:#1a1a1a;">${attrEsc(label)}:</span> <span style="${vStyle}">${disp}</span></div>`;
+      // Allow long notes to flow into the next column instead of being clipped.
+      // Overrides the .ff-item `break-inside: avoid` rule (inline wins) so the
+      // browser can split a long note across the two card columns.
+      const flow = "break-inside:auto;-webkit-column-break-inside:auto;page-break-inside:auto;";
+      return `<div class="ff-item" style="${flow}"><span style="font-weight:700;color:#1a1a1a;">${attrEsc(label)}:</span> <span style="${vStyle}">${disp}</span></div>`;
     }
     let vClass = "ff-v";
     let disp = raw;
