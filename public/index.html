@@ -1745,6 +1745,37 @@
       padding-top: 24px;
     }
 
+    /* KEY CONTACTS list (Instructor Resources tab) */
+    .kc-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 10px 24px;
+    }
+    .kc-row {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding: 10px 14px;
+      background: #f8f8f8;
+      border: 1px solid #e5e7eb;
+      border-left: 4px solid #e8694a;
+    }
+    .kc-label {
+      font-size: 11px;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+      color: #777;
+      text-transform: uppercase;
+    }
+    .kc-value {
+      font-size: 15px;
+      font-weight: 600;
+      color: #1a1a1a;
+      word-break: break-word;
+    }
+    .kc-value a { color: #3B5998; text-decoration: none; }
+    .kc-value a:hover { text-decoration: underline; }
+
     .docs-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -2278,6 +2309,78 @@
 
     if (cards.length === 0) return "";
     return `<div class="tl-link-grid">${cards.join("")}</div>`;
+  }
+
+  // ============================================================
+  // KEY CONTACTS (Instructor Resources tab)
+  // ============================================================
+  // Renders the "Key Contacts" section. Values arrive in
+  // portalData.keyContacts, keyed by the stable keys defined in
+  // KEY_CONTACT_FIELDS in netlify/functions/portal.js (trip value wins,
+  // else global). Each row is hidden when its value is empty, and the
+  // whole section is hidden when nothing has a value. The local-emergency
+  // country + number pairs collapse into a single row.
+  const KEY_CONTACTS = [
+    { label: "Pacific Discovery Emergency Line (USA)", key: "pd_emergency_usa" },
+    { label: "Pacific Discovery Emergency Line (NZ)",  key: "pd_emergency_nz" },
+    { label: "Pacific Discovery Headquarters (USA)",   key: "pd_hq_usa" },
+    { label: "Pacific Discovery Headquarters (NZ)",    key: "pd_hq_nz" },
+    { label: "Travel Agent Contact (24/7)",            key: "travel_agent_247" },
+    { localEmergency: 1, countryKey: "local_country_1", numberKey: "local_number_1" },
+    { localEmergency: 2, countryKey: "local_country_2", numberKey: "local_number_2" },
+    { localEmergency: 3, countryKey: "local_country_3", numberKey: "local_number_3" },
+    { localEmergency: 4, countryKey: "local_country_4", numberKey: "local_number_4" },
+    { localEmergency: 5, countryKey: "local_country_5", numberKey: "local_number_5" },
+    { label: "BHSI Insurance Concierge",               key: "bhsi_concierge" }
+  ];
+
+  // Turn a contact value into a tel:/mailto:/http link when it clearly is one,
+  // otherwise return escaped text. Useful on mobile for one-tap emergency calls.
+  function kcLinkify(raw) {
+    const v = String(raw == null ? "" : raw).trim();
+    if (!v) return "—";
+    if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) {
+      return `<a href="mailto:${attrEsc(v)}">${attrEsc(v)}</a>`;
+    }
+    if (/^https?:\/\//i.test(v)) {
+      return `<a href="${attrEsc(v)}" target="_blank" rel="noopener">${attrEsc(v)}</a>`;
+    }
+    // Phone: only +, digits, spaces, dots, dashes, parentheses, and ≥5 digits.
+    if (/^[+()\d\s.\-]+$/.test(v) && (v.replace(/\D/g, "").length >= 5)) {
+      return `<a href="tel:${attrEsc(v.replace(/[^\d+]/g, ""))}">${attrEsc(v)}</a>`;
+    }
+    return attrEsc(v);
+  }
+
+  function kcRow(label, value) {
+    return `<div class="kc-row">`
+      + `<span class="kc-label">${attrEsc(label)}</span>`
+      + `<span class="kc-value">${kcLinkify(value)}</span>`
+      + `</div>`;
+  }
+
+  function renderKeyContacts() {
+    const kc = (portalData && portalData.keyContacts) || {};
+    const val = (k) => { const v = kc[k]; return v == null ? "" : String(v).trim(); };
+    const rows = [];
+    for (const c of KEY_CONTACTS) {
+      if (c.localEmergency) {
+        const number = val(c.numberKey);
+        if (!number) continue;                 // no number → nothing to call
+        const country = val(c.countryKey);
+        const label = country ? `Local Emergency (${country})` : `Local Emergency Number ${c.localEmergency}`;
+        rows.push(kcRow(label, number));
+      } else {
+        const v = val(c.key);
+        if (!v) continue;
+        rows.push(kcRow(c.label, v));
+      }
+    }
+    if (rows.length === 0) return "";
+    return `<div class="docs-section">
+        <div class="docs-section-label">KEY CONTACTS</div>
+        <div class="kc-list">${rows.join("")}</div>
+      </div>`;
   }
 
   // ----- Message board -----
@@ -3306,7 +3409,7 @@
         //      Program record — anything the school types into HubSpot.
         //   3. The student list, with each card opening a Medical
         //      Information modal (filtered subset of the application form).
-        content.innerHTML = `<div class="docs-section">
+        content.innerHTML = renderKeyContacts() + `<div class="docs-section">
             <div class="docs-section-label">FAST FACTS</div>
             <div class="tl-link-grid">
               <div class="tl-link-card">

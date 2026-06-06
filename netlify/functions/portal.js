@@ -338,6 +338,16 @@ export async function handler(event) {
       delete merged.trip_leader_information_content;
     }
 
+    // ----- Key Contacts (Instructor Resources tab) -----
+    // Resolved by LABEL against the live property schema (not by a guessed
+    // internal name), so a missing or renamed property can never 400 the
+    // whole portal fetch. Trip value wins, else global. Instructor/admin
+    // only — same gate as the trip_leader rich-text block above.
+    let keyContacts = {};
+    if (callerHasAdminRole) {
+      keyContacts = await fetchKeyContacts(portalId, GLOBAL_PORTAL_ID, OBJECT, headers);
+    }
+
     console.log("PORTAL DATA (merged):", JSON.stringify(merged, null, 2));
 
     // 4. Return data. `availableTripCount` lets the frontend decide
@@ -353,7 +363,8 @@ export async function handler(event) {
       body: JSON.stringify({
         ...merged,
         labels,
-        availableTripCount
+        availableTripCount,
+        keyContacts
       })
     };
 
@@ -431,6 +442,100 @@ async function fetchPortalCards(portalIds, OBJECT, headers) {
   } catch (err) {
     console.warn("[portal] picker batch read threw:", err?.message || err);
     return portalIds.map(id => ({ id, title: "(unknown trip)", destination: "", price: null }));
+  }
+}
+
+// ===========================================================================
+// Key Contacts (Instructor Resources tab)
+// ===========================================================================
+// The Key Contacts card shows a fixed set of emergency / HQ / local-emergency
+// fields. Each entry maps a STABLE key (used by the frontend) to the HubSpot
+// property LABEL. We resolve labels → internal names from the live property
+// schema, so the portal never 400s if a property is absent or renamed — any
+// field we can't resolve is simply skipped.
+//
+// Trip record value wins; if blank, the global record's value is used.
+const KEY_CONTACT_FIELDS = [
+  { key: "pd_emergency_usa", label: "Pacific Discovery Emergency Line (USA)" },
+  { key: "pd_emergency_nz",  label: "Pacific Discovery Emergency Line (NZ)" },
+  { key: "pd_hq_usa",        label: "Pacific Discovery Headquarters (USA)" },
+  { key: "pd_hq_nz",         label: "Pacific Discovery Headquarters (NZ)" },
+  { key: "travel_agent_247", label: "Travel Agent Contact (24/7)" },
+  { key: "local_country_1",  label: "Local Emergency Number Country (1)" },
+  { key: "local_number_1",   label: "Local Emergency Number (1)" },
+  { key: "local_country_2",  label: "Local Emergency Number Country (2)" },
+  { key: "local_number_2",   label: "Local Emergency Number (2)" },
+  { key: "local_country_3",  label: "Local Emergency Number Country (3)" },
+  { key: "local_number_3",   label: "Local Emergency Number (3)" },
+  { key: "local_country_4",  label: "Local Emergency Number Country (4)" },
+  { key: "local_number_4",   label: "Local Emergency Number (4)" },
+  { key: "local_country_5",  label: "Local Emergency Number Country (5)" },
+  { key: "local_number_5",   label: "Local Emergency Number (5)" },
+  { key: "bhsi_concierge",   label: "BHSI Insurance Concierge" }
+];
+
+function normKeyContactLabel(s) {
+  return String(s == null ? "" : s)
+    .replace(/ /g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+// Returns { stableKey: value } for every key-contact field that (a) exists on
+// the object and (b) has a non-empty value on the trip or global record.
+// Fully fault-tolerant: any failure returns {} so the portal still loads.
+async function fetchKeyContacts(portalId, globalId, OBJECT, headers) {
+  try {
+    // 1. Resolve labels → existing internal names via the object schema.
+    const schemaRes = await fetch(
+      `https://api.hubapi.com/crm/v3/properties/${OBJECT}`,
+      { headers }
+    );
+    if (!schemaRes.ok) {
+      console.warn("[portal] key-contacts schema fetch non-OK:", schemaRes.status);
+      return {};
+    }
+    const schema = await schemaRes.json();
+    const nameByLabel = new Map();
+    for (const p of (schema.results || [])) {
+      if (p && p.label && p.name) nameByLabel.set(normKeyContactLabel(p.label), p.name);
+    }
+
+    const resolved = []; // { key, name }
+    for (const f of KEY_CONTACT_FIELDS) {
+      const name = nameByLabel.get(normKeyContactLabel(f.label));
+      if (name) resolved.push({ key: f.key, name });
+    }
+    if (resolved.length === 0) return {};
+
+    // 2. Fetch only the resolved (guaranteed-to-exist) properties from both
+    //    the trip and global records, in parallel.
+    const names = resolved.map(r => r.name).join(",");
+    const [tRes, gRes] = await Promise.all([
+      fetch(`https://api.hubapi.com/crm/v3/objects/${OBJECT}/${portalId}?properties=${encodeURIComponent(names)}`, { headers }),
+      fetch(`https://api.hubapi.com/crm/v3/objects/${OBJECT}/${globalId}?properties=${encodeURIComponent(names)}`, { headers }).catch(() => null)
+    ]);
+
+    const tProps = (tRes && tRes.ok) ? ((await tRes.json()).properties || {}) : {};
+    let gProps = {};
+    if (gRes && gRes.ok) {
+      try { gProps = (await gRes.json()).properties || {}; } catch (e) { /* non-fatal */ }
+    }
+
+    // 3. Merge trip-priority and keep only non-empty values.
+    const out = {};
+    for (const r of resolved) {
+      const t = tProps[r.name];
+      const v = (t != null && String(t).trim() !== "")
+        ? t
+        : (gProps[r.name] != null ? gProps[r.name] : "");
+      if (v != null && String(v).trim() !== "") out[r.key] = String(v).trim();
+    }
+    return out;
+  } catch (err) {
+    console.warn("[portal] key-contacts fetch failed:", err && err.message ? err.message : err);
+    return {};
   }
 }
 
