@@ -1730,6 +1730,12 @@
 
     .tl-link-card .tl-link-btn:hover { opacity: 0.85; }
 
+    .tl-qr {
+      width: 140px; height: 140px; align-self: center;
+      border: 1px solid #e5e7eb; background: #fff; padding: 6px;
+      image-rendering: pixelated; /* keep QR modules crisp when scaled */
+    }
+
     /* DOCUMENT UPLOADS */
     .docs-section-label {
       font-size: 11px;
@@ -3539,6 +3545,11 @@
                 <div class="tl-link-title">FAST FACTS CARDS</div>
                 <div class="tl-link-meta">Printable 5×7 cards · one set per participant</div>
                 <button type="button" class="tl-link-btn" onclick="openFastFactsModal()">VIEW / PRINT CARDS</button>
+              </div>
+              <div class="tl-link-card">
+                <div class="tl-link-title">UPLOAD PHOTOS / VIDEOS</div>
+                <img class="tl-qr" src="qr-upload-media.svg" alt="QR code linking to media.pacificdiscovery.org" width="140" height="140">
+                <a href="https://media.pacificdiscovery.org" target="_blank" rel="noopener" class="tl-link-btn">media.pacificdiscovery.org</a>
               </div>
             </div>
           </div>
