@@ -2388,7 +2388,12 @@
 
   function programReportsFormUrl(portalId, email, programName) {
     const qs = new URLSearchParams();
-    if (portalId)    qs.set("programId", portalId);
+    // The Jotform hidden field's Unique Name is `portalId` (see Field Details
+    // in Jotform). The param name MUST match that unique name for prefill to
+    // work. The backend filters on this same value.
+    if (portalId)    qs.set("portalId", portalId);
+    // Optional extras — only populate if the form has fields with these exact
+    // unique names; harmlessly ignored otherwise.
     if (email)       qs.set("instructorEmail", email);
     if (programName) qs.set("programName", programName);
     const q = qs.toString();
