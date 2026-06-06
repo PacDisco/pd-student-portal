@@ -1765,6 +1765,23 @@
     .folder-panel { display: none; }
     .folder-panel.active { display: block; }
 
+    /* PROGRAM REPORTS (form embed + submissions list) */
+    .pr-form {
+      width: 100%; min-height: 900px; border: 1px solid #e5e7eb;
+      border-radius: 4px; background: #fff; display: block;
+    }
+    .pr-list { display: flex; flex-direction: column; gap: 10px; }
+    .pr-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      padding: 12px 16px; background: #f8f8f8; border: 1px solid #e5e7eb;
+      border-left: 4px solid #3B5998;
+    }
+    .pr-row-who { font-weight: 600; color: #1a1a1a; font-size: 14px; }
+    .pr-row-when {
+      font-size: 11px; color: #999; letter-spacing: 0.5px;
+      text-transform: uppercase; margin-top: 2px;
+    }
+
     /* KEY CONTACTS list (Instructor Resources tab) */
     .kc-head {
       display: flex; align-items: center; justify-content: space-between;
@@ -2358,6 +2375,87 @@
       b.classList.toggle("active", Number(b.dataset.idx) === idx));
     root.querySelectorAll(".folder-panel").forEach(p =>
       p.classList.toggle("active", Number(p.dataset.idx) === idx));
+  }
+
+  // ============================================================
+  // PROGRAM REPORTS (reached from the QUICKLINKS card)
+  // ============================================================
+  // The Jotform that instructors fill in. The hidden `programId`,
+  // `instructorEmail` and `programName` fields are prefilled via the URL so
+  // each submission is tagged to this program (and surfaced back here by
+  // get-program-reports.js).
+  const PROGRAM_REPORTS_FORM_ID = "250887973978080";
+
+  function programReportsFormUrl(portalId, email, programName) {
+    const qs = new URLSearchParams();
+    if (portalId)    qs.set("programId", portalId);
+    if (email)       qs.set("instructorEmail", email);
+    if (programName) qs.set("programName", programName);
+    const q = qs.toString();
+    return `https://form.jotform.com/${PROGRAM_REPORTS_FORM_ID}${q ? "?" + q : ""}`;
+  }
+
+  function renderProgramReports(portalId, email, programName) {
+    const src = programReportsFormUrl(portalId, email, programName);
+    return `
+      <div class="docs-section">
+        <div class="docs-section-label">SUBMIT A PROGRAM REPORT</div>
+        <iframe class="pr-form" src="${attrEsc(src)}" title="Program Reports form"
+                loading="lazy" allow="geolocation; microphone; camera"></iframe>
+      </div>
+      <div class="docs-section">
+        <div class="docs-section-label">SUBMITTED REPORTS</div>
+        <div id="programReportsList"><span style="font-size:13px; color:#999;">Loading reports...</span></div>
+      </div>`;
+  }
+
+  async function loadProgramReportsList(portalId, email) {
+    const el = document.getElementById("programReportsList");
+    if (!el) return;
+    if (!portalId) {
+      el.innerHTML = `<div class="manuals-empty">No program is selected.</div>`;
+      return;
+    }
+
+    let data;
+    try {
+      const res = await fetch(`/.netlify/functions/get-program-reports?email=${encodeURIComponent(email)}&portalId=${encodeURIComponent(portalId)}`);
+      data = await res.json();
+    } catch (err) {
+      el.innerHTML = `<div class="manuals-empty">Could not load reports. Please refresh in a minute.</div>`;
+      return;
+    }
+
+    if (data?.error) {
+      el.innerHTML = `<div class="manuals-empty">Could not load reports: ${attrEsc(data.error)}</div>`;
+      return;
+    }
+
+    const subs = Array.isArray(data?.submissions) ? data.submissions : [];
+    if (subs.length === 0) {
+      el.innerHTML = `<div class="manuals-empty">No reports have been submitted for this program yet.</div>`;
+      return;
+    }
+
+    const fmtDate = (v) => {
+      const d = new Date(v);
+      return isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-NZ", { year: "numeric", month: "short", day: "numeric" });
+    };
+
+    el.innerHTML = `<div class="pr-list">` + subs.map(s => {
+      const who  = s.instructorName || s.instructorEmail || "Unknown submitter";
+      const when = fmtDate(s.submittedAt);
+      const edit = s.editUrl
+        ? `<a href="${attrEsc(s.editUrl)}" target="_blank" rel="noopener" class="tl-link-btn">EDIT</a>`
+        : "";
+      return `<div class="pr-row">
+          <div class="pr-row-meta">
+            <div class="pr-row-who">${attrEsc(who)}</div>
+            ${when ? `<div class="pr-row-when">${attrEsc(when)}</div>` : ""}
+          </div>
+          ${edit}
+        </div>`;
+    }).join("") + `</div>`;
   }
 
   // Generic resource-link grid renderer used by the Trip Leader and
@@ -3539,7 +3637,7 @@
         //   3. The student list, with each card opening a Medical
         //      Information modal (filtered subset of the application form).
         content.innerHTML = renderKeyContacts() + `<div class="docs-section">
-            <div class="docs-section-label">FAST FACTS</div>
+            <div class="docs-section-label">QUICKLINKS</div>
             <div class="tl-link-grid">
               <div class="tl-link-card">
                 <div class="tl-link-title">FAST FACTS CARDS</div>
@@ -3549,7 +3647,12 @@
               <div class="tl-link-card">
                 <div class="tl-link-title">UPLOAD PHOTOS / VIDEOS</div>
                 <img class="tl-qr" src="qr-upload-media.svg" alt="QR code linking to media.pacificdiscovery.org" width="140" height="140">
-                <a href="https://media.pacificdiscovery.org" target="_blank" rel="noopener" class="tl-link-btn">media.pacificdiscovery.org</a>
+                <a href="https://media.pacificdiscovery.org" target="_blank" rel="noopener" class="tl-link-btn">UPLOAD</a>
+              </div>
+              <div class="tl-link-card">
+                <div class="tl-link-title">PROGRAM REPORTS</div>
+                <div class="tl-link-meta">Submit &amp; view trip reports</div>
+                <button type="button" class="tl-link-btn" onclick="loadSection('program_reports')">OPEN REPORTS</button>
               </div>
             </div>
           </div>
@@ -3564,6 +3667,24 @@
         // the file grid into the placeholder above when it returns.
         loadInstructorFiles().catch(err => {
           console.error("Instructor files load error:", err);
+        });
+        return;
+      }
+
+      if (field === "program_reports") {
+        // Program Reports — reached from the QUICKLINKS card on the
+        // Instructor Resources tab. Shows the prefilled Jotform (so each
+        // submission is tagged with this program's id) plus every report
+        // already filed for this program, each linking to Jotform to edit.
+        const portalId    = String(portalData.hs_object_id || "").trim();
+        const callerEmail = sessionStorage.getItem("portalEmail") || "";
+        const programName = (portalData.program_name || portalData.portal_title || "").toString();
+        content.innerHTML = renderProgramReports(portalId, callerEmail, programName);
+        content.style.opacity = 1;
+        // Intentionally NOT calling styleLinksAsButtons() — the EDIT links
+        // already carry the tl-link-btn style and shouldn't be recoloured.
+        loadProgramReportsList(portalId, callerEmail).catch(err => {
+          console.error("Program reports load error:", err);
         });
         return;
       }
@@ -4953,7 +5074,7 @@
   }
 
   function styleLinksAsButtons() {
-    const links = document.querySelectorAll("#content a:not(.event-link):not(.flight-link):not(.payment-btn):not(.payment-amount-link):not(.manual-link):not(.teacher-contact a)");
+    const links = document.querySelectorAll("#content a:not(.event-link):not(.flight-link):not(.payment-btn):not(.payment-amount-link):not(.manual-link):not(.tl-link-btn):not(.teacher-contact a)");
     const colors = ["#3B5998", "#59a1aa", "#a9a66e", "#d6a380"];
 
     let buttonIndex = 0;
