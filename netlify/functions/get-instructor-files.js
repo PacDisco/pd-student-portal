@@ -59,58 +59,54 @@ export async function handler(event) {
     // HubSpot Files API v3 — search endpoint with a parentFolderIds filter.
     // Pagination via `after` cursor; cap at 5 pages so a runaway never
     // burns the function timeout.
-    const collected = [];
-    let after = undefined;
-    for (let page = 0; page < 5; page++) {
-      const qs = new URLSearchParams({
-        parentFolderIds: folderId,
-        limit: "100",
-        sort: "-updatedAt"
+    // ----- Root-level files (existing behaviour; INSTRUCTOR FILES section) -----
+    const root = await fetchFolderFiles(folderId, headers);
+    if (!root.ok) {
+      console.error(`[get-instructor-files] HubSpot ${root.status}: ${String(root.text || "").slice(0, 300)}`);
+      return jsonResponse(502, {
+        error: "HubSpot Files API call failed",
+        details: `HubSpot ${root.status}`,
+        hint: root.status === 403
+          ? "The Private App backing HUBSPOT_API_KEY is missing the 'files' read scope. Enable it in HubSpot Settings → Integrations → Private Apps."
+          : undefined,
+        files: []
       });
-      if (after) qs.set("after", after);
-
-      const res = await fetch(
-        `https://api.hubapi.com/files/v3/files/search?${qs.toString()}`,
-        { headers }
-      );
-      if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        console.error(`[get-instructor-files] HubSpot ${res.status}: ${text.slice(0, 300)}`);
-        return jsonResponse(502, {
-          error: "HubSpot Files API call failed",
-          details: `HubSpot ${res.status}`,
-          hint: res.status === 403
-            ? "The Private App backing HUBSPOT_API_KEY is missing the 'files' read scope. Enable it in HubSpot Settings → Integrations → Private Apps."
-            : undefined,
-          files: []
-        });
-      }
-      const data = await res.json();
-      for (const f of data.results || []) {
-        if (!f) continue;
-        collected.push({
-          id: String(f.id || ""),
-          name: f.name || "Untitled",
-          // HubSpot Files API v3 returns `url` (CDN URL) for publicly
-          // accessible files. Private files have `url` populated but the
-          // CDN serves them only to authenticated sessions — we link to
-          // the URL either way and let the browser/HubSpot handle access.
-          url: f.url || "",
-          extension: f.extension || "",
-          type: f.type || "",
-          size: typeof f.size === "number" ? f.size : null,
-          updatedAt: f.updatedAt || f.createdAt || null
-        });
-      }
-      after = data.paging?.next?.after;
-      if (!after) break;
     }
 
-    // Sort alphabetically by name for predictable display, regardless of
-    // upload order. (Override by setting `sort` on the request if needed.)
-    collected.sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
+    // ----- Numbered subfolders (1-5) and their contents -----
+    // The portal shows the subfolders of the Instructor Resources folder whose
+    // names begin with 1-5, each with its files. Live-read, so anything added
+    // to one of these folders in HubSpot appears here on the next load.
+    // Fully fault-tolerant: any failure here just yields an empty folders list
+    // and leaves the root file listing intact.
+    let folders = [];
+    try {
+      const subs = await fetchSubfolders(folderId, headers);
+      const numbered = subs
+        .map(s => {
+          const m = String(s.name || "").match(/^\s*(\d+)/);
+          const num = m ? parseInt(m[1], 10) : null;
+          return (num && num >= 1 && num <= 5) ? { ...s, number: num } : null;
+        })
+        .filter(Boolean)
+        // If two folders share a leading number, keep them both but order by
+        // number then name for a stable, predictable display.
+        .sort((a, b) => (a.number - b.number) || a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
 
-    return jsonResponse(200, { files: collected, folderId });
+      for (const sub of numbered) {
+        const r = await fetchFolderFiles(sub.id, headers);
+        folders.push({
+          id: sub.id,
+          name: sub.name,
+          number: sub.number,
+          files: r.ok ? r.files : []
+        });
+      }
+    } catch (e) {
+      console.warn("[get-instructor-files] subfolder listing failed:", e && e.message ? e.message : e);
+    }
+
+    return jsonResponse(200, { files: root.files, folders, folderId });
 
   } catch (err) {
     console.error("[get-instructor-files] threw:", err);
@@ -124,6 +120,71 @@ function jsonResponse(statusCode, body) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
   };
+}
+
+// Normalise one HubSpot Files API file record to the shape the portal uses.
+function mapFile(f) {
+  return {
+    id: String(f.id || ""),
+    name: f.name || "Untitled",
+    // HubSpot Files API v3 returns `url` (CDN URL) for publicly accessible
+    // files. Private files have `url` populated but the CDN serves them only
+    // to authenticated sessions — we link to the URL either way and let the
+    // browser / HubSpot handle access.
+    url: f.url || "",
+    extension: f.extension || "",
+    type: f.type || "",
+    size: typeof f.size === "number" ? f.size : null,
+    updatedAt: f.updatedAt || f.createdAt || null
+  };
+}
+
+// All files directly inside a folder, paginated (cap 5 pages), sorted by name.
+// Returns { ok:true, files } or { ok:false, status, text } on API error.
+async function fetchFolderFiles(folderId, headers) {
+  const collected = [];
+  let after;
+  for (let page = 0; page < 5; page++) {
+    const qs = new URLSearchParams({ parentFolderIds: folderId, limit: "100", sort: "-updatedAt" });
+    if (after) qs.set("after", after);
+    const res = await fetch(`https://api.hubapi.com/files/v3/files/search?${qs.toString()}`, { headers });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      return { ok: false, status: res.status, text };
+    }
+    const data = await res.json();
+    for (const f of data.results || []) { if (f) collected.push(mapFile(f)); }
+    after = data.paging?.next?.after;
+    if (!after) break;
+  }
+  collected.sort((a, b) => a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
+  return { ok: true, files: collected };
+}
+
+// Direct subfolders of `folderId`. We pass parentFolderIds as a best-effort
+// server-side filter AND filter on parentFolderId in case the API ignores it,
+// so we never accidentally pull the whole account's folder tree into scope.
+async function fetchSubfolders(folderId, headers) {
+  const out = [];
+  let after;
+  for (let page = 0; page < 5; page++) {
+    const qs = new URLSearchParams({ parentFolderIds: folderId, limit: "100" });
+    if (after) qs.set("after", after);
+    const res = await fetch(`https://api.hubapi.com/files/v3/folders/search?${qs.toString()}`, { headers });
+    if (!res.ok) {
+      console.warn(`[get-instructor-files] folders search HTTP ${res.status}`);
+      return out;
+    }
+    const data = await res.json();
+    for (const fld of data.results || []) {
+      if (!fld || !fld.id) continue;
+      if (String(fld.parentFolderId ?? "") !== String(folderId)) continue;
+      out.push({ id: String(fld.id), name: fld.name || "" });
+    }
+    after = data.paging?.next?.after;
+    if (!after) break;
+  }
+  return out;
 }
 
 // Allowed if the caller has any non-empty admin_role. Fails closed on

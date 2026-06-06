@@ -1745,6 +1745,18 @@
       padding-top: 24px;
     }
 
+    /* RESOURCE FOLDERS (Instructor Resources tab) */
+    .folder-block + .folder-block { margin-top: 22px; }
+    .folder-title {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: #3B5998;
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
     /* KEY CONTACTS list (Instructor Resources tab) */
     .kc-head {
       display: flex; align-items: center; justify-content: space-between;
@@ -2245,9 +2257,40 @@
   // File size formatting + extension-based icon are kept inline so the
   // helper is self-contained. Falls back to friendly error states if the
   // function returns an error / empty list.
+  function fmtFileSize(bytes) {
+    if (!bytes || !isFinite(bytes)) return "";
+    if (bytes < 1024)        return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  }
+
+  // One file card (shared by the root file list and the numbered folders).
+  function instructorFileCard(f) {
+    const ext  = (f.extension || "").toUpperCase();
+    const size = fmtFileSize(f.size);
+    const meta = [ext, size].filter(Boolean).join(" · ");
+    const href = f.url || "#";
+    return `
+      <div class="tl-link-card">
+        <div class="tl-link-title">${attrEsc(f.name)}</div>
+        ${meta ? `<div class="tl-link-meta">${attrEsc(meta)}</div>` : ""}
+        <a href="${attrEsc(href)}" target="_blank" rel="noopener" class="tl-link-btn">VIEW</a>
+      </div>`;
+  }
+
+  function instructorFileGrid(files) {
+    return files && files.length
+      ? `<div class="tl-link-grid">${files.map(instructorFileCard).join("")}</div>`
+      : `<div class="manuals-empty">No files in this folder yet.</div>`;
+  }
+
   async function loadInstructorFiles() {
-    const el = document.getElementById("instructorFilesContainer");
-    if (!el) return;
+    const el         = document.getElementById("instructorFilesContainer");
+    const foldersEl  = document.getElementById("instructorFoldersContainer");
+    const foldersSec = document.getElementById("instructorFoldersSection");
+    if (!el && !foldersEl) return;
+
+    const hideFolders = () => { if (foldersSec) foldersSec.style.display = "none"; };
 
     let data;
     try {
@@ -2258,44 +2301,42 @@
       const res = await fetch(`/.netlify/functions/get-instructor-files?email=${encodeURIComponent(callerEmail)}`);
       data = await res.json();
     } catch (err) {
-      el.innerHTML = `<div class="manuals-empty">Could not load files. Please refresh in a minute.</div>`;
+      if (el) el.innerHTML = `<div class="manuals-empty">Could not load files. Please refresh in a minute.</div>`;
+      hideFolders();
       return;
     }
 
     if (data?.error) {
-      el.innerHTML = `<div class="manuals-empty">Could not load files: ${attrEsc(data.error)}${
+      if (el) el.innerHTML = `<div class="manuals-empty">Could not load files: ${attrEsc(data.error)}${
         data.hint ? `<br><small style="opacity:.7;">${attrEsc(data.hint)}</small>` : ""
       }</div>`;
+      hideFolders();
       return;
     }
 
-    const files = Array.isArray(data?.files) ? data.files : [];
-    if (files.length === 0) {
-      el.innerHTML = `<div class="manuals-empty">No files have been added to the Instructor Resources folder yet.</div>`;
-      return;
+    // ----- Root-level files (INSTRUCTOR FILES section) -----
+    if (el) {
+      const files = Array.isArray(data?.files) ? data.files : [];
+      el.innerHTML = files.length
+        ? `<div class="tl-link-grid">${files.map(instructorFileCard).join("")}</div>`
+        : `<div class="manuals-empty">No files have been added to the Instructor Resources folder yet.</div>`;
     }
 
-    function fmtSize(bytes) {
-      if (!bytes || !isFinite(bytes)) return "";
-      if (bytes < 1024)         return `${bytes} B`;
-      if (bytes < 1024 * 1024)  return `${(bytes / 1024).toFixed(0)} KB`;
-      return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    // ----- Numbered folders 1-5, each with its contents -----
+    const folders = Array.isArray(data?.folders) ? data.folders : [];
+    if (foldersEl) {
+      if (folders.length === 0) {
+        hideFolders();
+      } else {
+        if (foldersSec) foldersSec.style.display = "";
+        foldersEl.innerHTML = folders.map(fld =>
+          `<div class="folder-block">
+            <div class="folder-title">${attrEsc(fld.name)}</div>
+            ${instructorFileGrid(Array.isArray(fld.files) ? fld.files : [])}
+          </div>`
+        ).join("");
+      }
     }
-
-    const cards = files.map(f => {
-      const ext  = (f.extension || "").toUpperCase();
-      const size = fmtSize(f.size);
-      const meta = [ext, size].filter(Boolean).join(" · ");
-      const href = f.url || "#";
-      return `
-        <div class="tl-link-card">
-          <div class="tl-link-title">${attrEsc(f.name)}</div>
-          ${meta ? `<div class="tl-link-meta">${attrEsc(meta)}</div>` : ""}
-          <a href="${attrEsc(href)}" target="_blank" rel="noopener" class="tl-link-btn">VIEW</a>
-        </div>`;
-    });
-
-    el.innerHTML = `<div class="tl-link-grid">${cards.join("")}</div>`;
   }
 
   // Generic resource-link grid renderer used by the Trip Leader and
@@ -3485,6 +3526,10 @@
                 <button type="button" class="tl-link-btn" onclick="openFastFactsModal()">VIEW / PRINT CARDS</button>
               </div>
             </div>
+          </div>
+          <div class="docs-section" id="instructorFoldersSection">
+            <div class="docs-section-label">RESOURCE FOLDERS</div>
+            <div id="instructorFoldersContainer"><span style="font-size:13px; color:#999;">Loading folders...</span></div>
           </div>
           <div class="docs-section">
             <div class="docs-section-label">INSTRUCTOR FILES</div>
