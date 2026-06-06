@@ -1745,17 +1745,19 @@
       padding-top: 24px;
     }
 
-    /* RESOURCE FOLDERS (Instructor Resources tab) */
-    .folder-block + .folder-block { margin-top: 22px; }
-    .folder-title {
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-      color: #3B5998;
-      margin-bottom: 10px;
-      padding-bottom: 6px;
-      border-bottom: 1px solid #e5e7eb;
+    /* RESOURCE FOLDERS (Instructor Resources tab) — tabbed */
+    .folder-tabs {
+      display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px;
     }
+    .folder-tab {
+      padding: 9px 16px; background: #f1f3f7; border: 1px solid #e5e7eb;
+      border-radius: 4px; font-size: 12px; font-weight: 600; letter-spacing: 0.4px;
+      color: #555; cursor: pointer; transition: background 0.15s ease, color 0.15s ease;
+    }
+    .folder-tab:hover { background: #e8ebf1; }
+    .folder-tab.active { background: #3B5998; color: #fff; border-color: #3B5998; }
+    .folder-panel { display: none; }
+    .folder-panel.active { display: block; }
 
     /* KEY CONTACTS list (Instructor Resources tab) */
     .kc-head {
@@ -2329,14 +2331,27 @@
         hideFolders();
       } else {
         if (foldersSec) foldersSec.style.display = "";
-        foldersEl.innerHTML = folders.map(fld =>
-          `<div class="folder-block">
-            <div class="folder-title">${attrEsc(fld.name)}</div>
-            ${instructorFileGrid(Array.isArray(fld.files) ? fld.files : [])}
-          </div>`
+        const tabs = folders.map((fld, i) =>
+          `<button type="button" class="folder-tab${i === 0 ? " active" : ""}" data-idx="${i}" onclick="selectInstructorFolder(${i})">${attrEsc(fld.name)}</button>`
         ).join("");
+        const panels = folders.map((fld, i) =>
+          `<div class="folder-panel${i === 0 ? " active" : ""}" data-idx="${i}">${instructorFileGrid(Array.isArray(fld.files) ? fld.files : [])}</div>`
+        ).join("");
+        foldersEl.innerHTML = `<div class="folder-tabs">${tabs}</div><div class="folder-panels">${panels}</div>`;
       }
     }
+  }
+
+  // Tab switcher for the RESOURCE FOLDERS section — shows the selected
+  // folder's contents and hides the rest. Global so the inline onclick can
+  // reach it (same pattern as openFastFactsModal / printKeyContacts).
+  function selectInstructorFolder(idx) {
+    const root = document.getElementById("instructorFoldersContainer");
+    if (!root) return;
+    root.querySelectorAll(".folder-tab").forEach(b =>
+      b.classList.toggle("active", Number(b.dataset.idx) === idx));
+    root.querySelectorAll(".folder-panel").forEach(p =>
+      p.classList.toggle("active", Number(p.dataset.idx) === idx));
   }
 
   // Generic resource-link grid renderer used by the Trip Leader and
