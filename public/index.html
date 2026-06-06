@@ -2448,14 +2448,17 @@
     };
 
     el.innerHTML = `<div class="pr-list">` + subs.map(s => {
-      const who  = s.instructorName || s.instructorEmail || "Unknown submitter";
+      const week = s.week ? (/^\d+$/.test(String(s.week).trim()) ? `Week ${s.week}` : String(s.week)) : "";
+      // Title = form type · who's filling it out · week of program.
+      const title = [s.formType, s.submitter, week].filter(Boolean).join(" · ")
+        || s.instructorEmail || "Report";
       const when = fmtDate(s.submittedAt);
       const edit = s.editUrl
         ? `<a href="${attrEsc(s.editUrl)}" target="_blank" rel="noopener" class="tl-link-btn">EDIT</a>`
         : "";
       return `<div class="pr-row">
           <div class="pr-row-meta">
-            <div class="pr-row-who">${attrEsc(who)}</div>
+            <div class="pr-row-who">${attrEsc(title)}</div>
             ${when ? `<div class="pr-row-when">${attrEsc(when)}</div>` : ""}
           </div>
           ${edit}

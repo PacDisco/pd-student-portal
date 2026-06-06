@@ -32,7 +32,14 @@ const DEFAULT_FORM_IDS = (process.env.PROGRAM_REPORTS_FORM_ID
 const PROGRAM_ID_NAMES   = ["programid", "program_id", "portalid", "portal_id"];
 const PROGRAM_ID_LABELS  = ["program id", "portal id"];
 const EMAIL_NAMES        = ["instructoremail", "instructor_email", "email"];
-const NAME_NAMES         = ["instructorname", "instructor_name", "name"];
+
+// Fields used to build each row's title in the portal.
+const FORM_TYPE_NAMES    = ["whattypeofformareyousubmitting", "typeofform", "formtype", "type"];
+const FORM_TYPE_LABELS   = ["what type of form are you submitting", "type of form", "form type"];
+const WHO_NAMES          = ["whosfillingoutthereport", "whoisfillingoutthereport", "whosfillingouttheform", "instructorname", "name"];
+const WHO_LABELS         = ["whos filling out the report", "who is filling out the report", "who s filling out the report", "name"];
+const WEEK_NAMES         = ["weekofprogram", "week"];
+const WEEK_LABELS        = ["week of program", "week"];
 
 export async function handler(event) {
   try {
@@ -89,7 +96,10 @@ export async function handler(event) {
         return {
           id,
           submittedAt: sub.created_at || sub.updated_at || null,
-          instructorName: answerByName(sub, NAME_NAMES, [], "control_fullname") || "",
+          // Title parts (composed by the portal): form type · who · week.
+          formType: answerByName(sub, FORM_TYPE_NAMES, FORM_TYPE_LABELS) || "",
+          submitter: answerByName(sub, WHO_NAMES, WHO_LABELS, "control_fullname") || "",
+          week: answerByName(sub, WEEK_NAMES, WEEK_LABELS) || "",
           instructorEmail: answerByName(sub, EMAIL_NAMES, [], "control_email") || "",
           // Jotform's per-submission edit URL. Opens the submission in edit
           // mode; the list itself is gated to instructors/admins above.
@@ -121,14 +131,17 @@ function jsonResponse(statusCode, body) {
 // Returns the flattened string value, or "" if not found.
 function answerByName(submission, names = [], labels = [], type = null) {
   const answers = submission?.answers || {};
+  // Normalise by stripping punctuation (apostrophes, "?", etc.) so label
+  // matching is robust to Jotform's exact phrasing/curly quotes.
+  const norm = s => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   const wantNames = names.map(s => s.toLowerCase());
-  const wantLabels = labels.map(s => s.toLowerCase());
+  const wantLabels = labels.map(norm);
   for (const k of Object.keys(answers)) {
     const a = answers[k] || {};
     const nm = String(a.name || "").toLowerCase();
-    const tx = String(a.text || "").toLowerCase().replace(/\s+/g, " ").trim();
+    const tx = norm(a.text);
     const ty = String(a.type || "").toLowerCase();
-    if (wantNames.includes(nm) || wantLabels.includes(tx) || (type && ty === type)) {
+    if (wantNames.includes(nm) || (tx && wantLabels.includes(tx)) || (type && ty === type)) {
       const v = formatAnswer(a);
       if (v) return v;
     }
