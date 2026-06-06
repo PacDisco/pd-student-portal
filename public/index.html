@@ -1746,6 +1746,17 @@
     }
 
     /* KEY CONTACTS list (Instructor Resources tab) */
+    .kc-head {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px; flex-wrap: wrap; margin-bottom: 16px;
+    }
+    .kc-print-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 9px 18px; background: #3B5998; color: #fff; border: none;
+      border-radius: 4px; font-size: 11px; font-weight: 600; letter-spacing: 1.3px;
+      cursor: pointer; transition: opacity 0.2s ease;
+    }
+    .kc-print-btn:hover { opacity: 0.85; }
     .kc-list {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -2359,7 +2370,10 @@
       + `</div>`;
   }
 
-  function renderKeyContacts() {
+  // Resolve the Key Contacts into an ordered [{label, value}] list (shared by
+  // the on-screen section and the printable/downloadable sheet). Empty fields
+  // are dropped and the local-emergency country/number pairs are collapsed.
+  function collectKeyContacts() {
     const kc = (portalData && portalData.keyContacts) || {};
     const val = (k) => { const v = kc[k]; return v == null ? "" : String(v).trim(); };
     const rows = [];
@@ -2369,18 +2383,71 @@
         if (!number) continue;                 // no number → nothing to call
         const country = val(c.countryKey);
         const label = country ? `Local Emergency (${country})` : `Local Emergency Number ${c.localEmergency}`;
-        rows.push(kcRow(label, number));
+        rows.push({ label, value: number });
       } else {
         const v = val(c.key);
         if (!v) continue;
-        rows.push(kcRow(c.label, v));
+        rows.push({ label: c.label, value: v });
       }
     }
+    return rows;
+  }
+
+  function renderKeyContacts() {
+    const rows = collectKeyContacts();
     if (rows.length === 0) return "";
+    const list = rows.map(r => kcRow(r.label, r.value)).join("");
     return `<div class="docs-section">
-        <div class="docs-section-label">KEY CONTACTS</div>
-        <div class="kc-list">${rows.join("")}</div>
+        <div class="kc-head">
+          <div class="docs-section-label" style="margin-bottom:0;">KEY CONTACTS</div>
+          <button type="button" class="kc-print-btn" onclick="printKeyContacts()">⬇ DOWNLOAD / PRINT</button>
+        </div>
+        <div class="kc-list">${list}</div>
       </div>`;
+  }
+
+  // Open a clean print window with the Key Contacts laid out as a one-page
+  // sheet and trigger the print dialog (Save as PDF or print). Kept in a
+  // separate document so none of the portal UI lands in the output. Mirrors
+  // printFastFactsCards().
+  function printKeyContacts() {
+    const rows = collectKeyContacts();
+    if (rows.length === 0) return;
+    const program = (portalData.program_name || portalData.portal_title || "Pacific Discovery").toString();
+    const generated = new Date().toLocaleDateString("en-NZ", { year: "numeric", month: "short", day: "numeric" });
+
+    const css = `
+      @page { size: A4 portrait; margin: 0.6in; }
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; font-family: -apple-system,"Segoe UI",Roboto,sans-serif; color: #1a1a1a; }
+      h1 { font-size: 22pt; margin: 0 0 2px; }
+      .kc-p-sub { font-size: 11pt; color: #555; border-bottom: 2px solid #3B5998; padding-bottom: 10px; margin-bottom: 16px; }
+      .kc-p-meta { font-size: 8.5pt; color: #999; margin-top: 2px; }
+      .kc-p-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 28px; }
+      .kc-p-row { break-inside: avoid; padding: 8px 12px; border: 1px solid #e5e7eb; border-left: 4px solid #e8694a; }
+      .kc-p-label { font-size: 8.5pt; letter-spacing: 0.5px; font-weight: 700; color: #777; text-transform: uppercase; }
+      .kc-p-value { font-size: 13pt; font-weight: 700; margin-top: 2px; word-break: break-word; }
+    `;
+    const body = rows.map(r =>
+      `<div class="kc-p-row"><div class="kc-p-label">${attrEsc(r.label)}</div><div class="kc-p-value">${attrEsc(r.value)}</div></div>`
+    ).join("");
+
+    const w = window.open("", "_blank");
+    if (!w) { alert("Please allow pop-ups for this site to download the Key Contacts."); return; }
+    w.document.open();
+    w.document.write(
+      `<!doctype html><html><head><meta charset="utf-8">` +
+      `<title>Key Contacts — ${attrEsc(program)}</title><style>${css}</style></head>` +
+      `<body><h1>Key Contacts</h1>` +
+      `<div class="kc-p-sub">${attrEsc(program)}<div class="kc-p-meta">Generated ${attrEsc(generated)}</div></div>` +
+      `<div class="kc-p-list">${body}</div></body></html>`
+    );
+    w.document.close();
+
+    let printed = false;
+    const doPrint = () => { if (printed) return; printed = true; try { w.focus(); w.print(); } catch (e) {} };
+    w.onload = () => setTimeout(doPrint, 250);
+    setTimeout(doPrint, 1200);
   }
 
   // ----- Message board -----
