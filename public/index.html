@@ -1745,6 +1745,25 @@
       margin-bottom: 16px;
     }
 
+    /* Colour-coded section headers (opt-in via .sec-accent + --accent) so
+       each section on a tab is instantly distinguishable and quick to find. */
+    .docs-section-label.sec-accent {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent, #3B5998);
+    }
+    .docs-section-label.sec-accent::before {
+      content: "";
+      width: 6px;
+      height: 15px;
+      border-radius: 2px;
+      background: var(--accent, #3B5998);
+      flex: 0 0 auto;
+    }
+
     .docs-section + .docs-section {
       margin-top: 32px;
       border-top: 1px solid #e5e7eb;
@@ -2434,12 +2453,12 @@
     const src = programReportsFormUrl(portalId, email, programName);
     return `
       <div class="docs-section">
-        <div class="docs-section-label">SUBMIT A PROGRAM REPORT</div>
+        <div class="docs-section-label sec-accent" style="--accent:#a9a66e;">SUBMIT A PROGRAM REPORT</div>
         <iframe class="pr-form" src="${attrEsc(src)}" title="Program Reports form"
                 loading="lazy" allow="geolocation; microphone; camera"></iframe>
       </div>
       <div class="docs-section">
-        <div class="docs-section-label">SUBMITTED REPORTS</div>
+        <div class="docs-section-label sec-accent" style="--accent:#3B5998;">SUBMITTED REPORTS</div>
         <div id="programReportsList"><span style="font-size:13px; color:#999;">Loading reports...</span></div>
       </div>`;
   }
@@ -2597,7 +2616,7 @@
     const list = rows.map(r => kcRow(r.label, r.value)).join("");
     return `<div class="docs-section">
         <div class="kc-head">
-          <div class="docs-section-label" style="margin-bottom:0;">KEY CONTACTS</div>
+          <div class="docs-section-label sec-accent" style="margin-bottom:0; --accent:#59a1aa;">KEY CONTACTS</div>
           <button type="button" class="kc-print-btn" onclick="printKeyContacts()">⬇ DOWNLOAD / PRINT</button>
         </div>
         <div class="kc-list">${list}</div>
@@ -3675,7 +3694,7 @@
         //   3. The student list, with each card opening a Medical
         //      Information modal (filtered subset of the application form).
         content.innerHTML = renderKeyContacts() + `<div class="docs-section">
-            <div class="docs-section-label">QUICKLINKS</div>
+            <div class="docs-section-label sec-accent" style="--accent:#e8694a;">QUICKLINKS</div>
             <div class="tl-link-grid">
               <div class="tl-link-card">
                 <div class="tl-link-title">FAST FACTS CARDS</div>
@@ -3695,7 +3714,7 @@
             </div>
           </div>
           <div class="docs-section" id="instructorFoldersSection">
-            <div class="docs-section-label">RESOURCE FOLDERS</div>
+            <div class="docs-section-label sec-accent" style="--accent:#3B5998;">RESOURCE FOLDERS</div>
             <div id="instructorFoldersContainer"><span style="font-size:13px; color:#999;">Loading folders...</span></div>
           </div>` + (portalData[field] || "");
         content.style.opacity = 1;
