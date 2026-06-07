@@ -1751,17 +1751,23 @@
       padding-top: 24px;
     }
 
-    /* RESOURCE FOLDERS (Instructor Resources tab) — tabbed */
-    .folder-tabs {
-      display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px;
+    /* RESOURCE FOLDERS (Instructor Resources tab) — cards */
+    .folder-cards {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+      gap: 12px; margin-bottom: 20px;
     }
-    .folder-tab {
-      padding: 9px 16px; background: #f1f3f7; border: 1px solid #e5e7eb;
-      border-radius: 4px; font-size: 12px; font-weight: 600; letter-spacing: 0.4px;
-      color: #555; cursor: pointer; transition: background 0.15s ease, color 0.15s ease;
+    .folder-card {
+      text-align: left; background: #f8f8f8; border: 1px solid #e5e7eb;
+      border-top: 3px solid #3B5998; padding: 14px 16px; cursor: pointer;
+      display: flex; flex-direction: column; gap: 6px;
+      transition: background 0.15s ease, box-shadow 0.15s ease;
     }
-    .folder-tab:hover { background: #e8ebf1; }
-    .folder-tab.active { background: #3B5998; color: #fff; border-color: #3B5998; }
+    .folder-card:hover { background: #eef1f6; }
+    .folder-card.active { background: #fff; box-shadow: inset 0 0 0 2px #3B5998; }
+    .folder-card-title {
+      font-size: 13px; font-weight: 700; letter-spacing: 0.3px; color: #212121;
+    }
+    .folder-card-desc { font-size: 12px; color: #666; line-height: 1.4; }
     .folder-panel { display: none; }
     .folder-panel.active { display: block; }
 
@@ -2309,6 +2315,26 @@
       : `<div class="manuals-empty">No files in this folder yet.</div>`;
   }
 
+  // ============================================================
+  // === EDIT THESE FOLDER DESCRIPTIONS ===
+  // Short blurb shown on each Resource Folder card. Keyed by the folder's
+  // leading number (1-5) so it stays correct even if a folder is renamed.
+  // Leave a key out (or blank) to show a card with no description.
+  // ============================================================
+  const FOLDER_DESCRIPTIONS = {
+    "1": "Risk assessments, safety procedures, and emergency protocols for the program.",
+    "2": "Guidance for managing student behaviour and responding to incidents on program.",
+    "3": "Instructions and policies for program credit cards, cash handling, and expenses.",
+    "4": "Curriculum materials, lesson plans, and educational resources.",
+    "5": "Supplementary documents and any other useful resources."
+  };
+
+  function folderDescription(fld) {
+    const m = String(fld?.name || "").match(/^\s*(\d+)/);
+    const key = (fld && fld.number != null) ? String(fld.number) : (m ? m[1] : "");
+    return FOLDER_DESCRIPTIONS[key] || "";
+  }
+
   async function loadInstructorFiles() {
     const el         = document.getElementById("instructorFilesContainer");
     const foldersEl  = document.getElementById("instructorFoldersContainer");
@@ -2354,13 +2380,17 @@
         hideFolders();
       } else {
         if (foldersSec) foldersSec.style.display = "";
-        const tabs = folders.map((fld, i) =>
-          `<button type="button" class="folder-tab${i === 0 ? " active" : ""}" data-idx="${i}" onclick="selectInstructorFolder(${i})">${attrEsc(fld.name)}</button>`
-        ).join("");
+        const cards = folders.map((fld, i) => {
+          const desc = folderDescription(fld);
+          return `<button type="button" class="folder-card${i === 0 ? " active" : ""}" data-idx="${i}" onclick="selectInstructorFolder(${i})">
+            <span class="folder-card-title">${attrEsc(fld.name)}</span>
+            ${desc ? `<span class="folder-card-desc">${attrEsc(desc)}</span>` : ""}
+          </button>`;
+        }).join("");
         const panels = folders.map((fld, i) =>
           `<div class="folder-panel${i === 0 ? " active" : ""}" data-idx="${i}">${instructorFileGrid(Array.isArray(fld.files) ? fld.files : [])}</div>`
         ).join("");
-        foldersEl.innerHTML = `<div class="folder-tabs">${tabs}</div><div class="folder-panels">${panels}</div>`;
+        foldersEl.innerHTML = `<div class="folder-cards">${cards}</div><div class="folder-panels">${panels}</div>`;
       }
     }
   }
@@ -2371,7 +2401,7 @@
   function selectInstructorFolder(idx) {
     const root = document.getElementById("instructorFoldersContainer");
     if (!root) return;
-    root.querySelectorAll(".folder-tab").forEach(b =>
+    root.querySelectorAll(".folder-card").forEach(b =>
       b.classList.toggle("active", Number(b.dataset.idx) === idx));
     root.querySelectorAll(".folder-panel").forEach(p =>
       p.classList.toggle("active", Number(p.dataset.idx) === idx));
