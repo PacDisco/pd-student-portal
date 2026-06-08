@@ -20,12 +20,14 @@
 const PORTAL_OBJECT_ID = "2-58411705";
 const GLOBAL_PORTAL_ID = "54796059552";
 
+import { authenticateAdmin, authError } from "./_shared/auth.js";
+
 export async function handler(event) {
   try {
-    const email = (event.queryStringParameters || {}).email;
-    if (!email) {
-      return jsonResponse(400, { error: "Missing email" });
-    }
+    // Admin-only: identity (and admin role) come from the verified token.
+    let identity;
+    try { identity = await authenticateAdmin(event); } catch (e) { return authError(e); }
+    const email = identity.email;
     if (!process.env.HUBSPOT_API_KEY) {
       return jsonResponse(500, { error: "HUBSPOT_API_KEY is not set" });
     }

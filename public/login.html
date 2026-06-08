@@ -208,6 +208,8 @@
       const data = await res.json();
 
       if (data.success) {
+        // Signed session token — sent as a Bearer header on every API call.
+        if (data.token) sessionStorage.setItem("portalToken", data.token);
         sessionStorage.setItem("portalEmail", data.email || email);
         // Stash admin metadata so admin.html and index.html can detect
         // the role without a second login round-trip.

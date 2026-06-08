@@ -1,23 +1,26 @@
+import { authenticate, authError } from "./_shared/auth.js";
+
 export async function handler(event) {
   try {
+    // Identity from the verified session token, never the request.
+    let identity;
+    try { identity = await authenticate(event); } catch (e) { return authError(e); }
+    const email = identity.email;
+
     const params = event.queryStringParameters || {};
-    const email = params.email;
-    // Admin viewing path: caller passed ?portalId=… instead of ?email=…
-    // Skip the contact-lookup + association step entirely and just return
-    // that specific Portal record's content. Used by /admin.html when an
-    // admin picks a trip from the portal list.
+    // Admin viewing path: caller passed ?portalId=… to view a specific trip,
+    // bypassing the contact-association gate. Requires an admin role (the
+    // role is embedded in the verified token), checked immediately below.
     const adminPortalId = params.portalId;
-    // Leader / multi-trip user picker: caller passes ?email=…&picked=<id>
-    // after choosing one of their associated trips on /my-trips.html.
-    // We verify the picked id is actually in the user's association list
-    // before honouring it, so a logged-in user can\'t guess another
-    // trip\'s portalId in the URL bar.
+    // Leader / multi-trip user picker: caller passes ?picked=<id> after
+    // choosing one of their associated trips on /my-trips.html. We verify the
+    // picked id is actually in the user's association list before honouring it.
     const pickedPortalId = params.picked;
 
-    if (!email && !adminPortalId) {
+    if (adminPortalId && !identity.role) {
       return {
-        statusCode: 400,
-        body: JSON.stringify({ error: "Missing email or portalId" })
+        statusCode: 403,
+        body: JSON.stringify({ error: "Not authorized to view this trip." })
       };
     }
 

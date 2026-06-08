@@ -1,3 +1,5 @@
+import { createToken } from "./_shared/auth.js";
+
 export async function handler(event) {
   try {
     const { token, email, password } = JSON.parse(event.body);
@@ -28,7 +30,7 @@ export async function handler(event) {
               value: email
             }]
           }],
-          properties: ["email", "portal_token", "portal_token_expiry"]
+          properties: ["email", "portal_token", "portal_token_expiry", "admin_role", "firstname", "portal_token_version"]
         })
       }
     );
@@ -69,9 +71,21 @@ export async function handler(event) {
       }
     );
 
+    // Mint a session token so the user lands logged in (no second login step).
+    const cleanEmail = String(email).toLowerCase().trim();
+    const adminRole = contact.properties?.admin_role || null;
+    const ver = parseInt(contact.properties?.portal_token_version || "0", 10) || 0;
+    const sessionToken = createToken({ email: cleanEmail, role: adminRole || "", ver });
+
     return {
       statusCode: 200,
-      body: JSON.stringify({ success: true })
+      body: JSON.stringify({
+        success: true,
+        token: sessionToken,
+        email: cleanEmail,
+        adminRole,
+        firstName: contact.properties?.firstname || null
+      })
     };
 
   } catch (err) {

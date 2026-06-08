@@ -9,8 +9,14 @@
 // Both lists feed the "SCHOOL CONTACTS" section on the portal so parents
 // see who's accompanying the trip and a short bio of each trip leader.
 
+import { authenticate, authError } from "./_shared/auth.js";
+
 export async function handler(event) {
   try {
+    // Previously this endpoint took no identity at all. Require a valid
+    // session so only logged-in portal users can read a program's leaders.
+    try { await authenticate(event); } catch (e) { return authError(e); }
+
     const { portalId } = event.queryStringParameters || {};
 
     if (!portalId) {

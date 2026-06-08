@@ -21,6 +21,7 @@
 
 import crypto from "crypto";
 import nodemailer from "nodemailer";
+import { authenticateAdmin, authError } from "./_shared/auth.js";
 
 // Roles the FORM is allowed to ASSIGN to a new admin. The form's dropdown
 // is hardcoded to these three — these are the roles that show up as
@@ -66,11 +67,16 @@ export async function handler(event) {
       return jsonResponse(500, { error: `Server is not configured (${missing.join(", ")}).` });
     }
 
+    // Admin-only: the inviter is the authenticated caller (from the verified
+    // token), never a value supplied in the request body.
+    let inviterIdentity;
+    try { inviterIdentity = await authenticateAdmin(event); } catch (e) { return authError(e); }
+    const inviterEmail = inviterIdentity.email;
+
     let body;
     try { body = JSON.parse(event.body || "{}"); }
     catch (_) { return jsonResponse(400, { error: "Invalid JSON body" }); }
 
-    const inviterEmail = (body.inviterEmail || "").toLowerCase().trim();
     const inviteeEmail = (body.inviteeEmail || "").toLowerCase().trim();
     const firstName    = (body.firstName    || "").trim();
     const lastName     = (body.lastName     || "").trim();

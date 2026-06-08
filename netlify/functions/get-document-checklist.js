@@ -26,17 +26,17 @@
 const PROPERTY_NAME = process.env.DOCUMENTS_NEEDED_PROPERTY || "document_submissions";
 const IGNORED_VALUES = new Set(["bio complete"]); // case-insensitive
 
+import { authenticate, authError } from "./_shared/auth.js";
+
 export async function handler(event) {
   try {
-    const email = event.queryStringParameters?.email;
-    if (!email) {
-      return jsonResponse(400, { error: "Missing email" });
-    }
+    let identity;
+    try { identity = await authenticate(event); } catch (e) { return authError(e); }
     if (!process.env.HUBSPOT_API_KEY) {
       return jsonResponse(500, { error: "HUBSPOT_API_KEY not configured" });
     }
 
-    const cleanEmail = String(email).toLowerCase().trim();
+    const cleanEmail = identity.email;
     const headers = {
       Authorization: `Bearer ${process.env.HUBSPOT_API_KEY}`,
       "Content-Type": "application/json"

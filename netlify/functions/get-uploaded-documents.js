@@ -55,13 +55,17 @@ function isGenericUploadLabel(label) {
   return false;
 }
 
+import { authenticate, authError } from "./_shared/auth.js";
+
 export async function handler(event) {
   try {
-    const { email, formId, formIds } = event.queryStringParameters || {};
+    const { formId, formIds } = event.queryStringParameters || {};
 
-    if (!email) {
-      return { statusCode: 400, body: JSON.stringify({ error: "Missing email" }) };
-    }
+    // Email from the verified token — a user only sees their own uploads.
+    let identity;
+    try { identity = await authenticate(event); } catch (e) { return authError(e); }
+    const email = identity.email;
+
     if (!process.env.JOTFORM_API_KEY) {
       return {
         statusCode: 500,

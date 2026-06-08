@@ -1,3 +1,5 @@
+import { createToken } from "./_shared/auth.js";
+
 export async function handler(event) {
   try {
     const { email, password } = JSON.parse(event.body);
@@ -30,7 +32,7 @@ export async function handler(event) {
           // admin_role + firstname are returned to the browser so the
           // login page can route admins straight to /admin.html and
           // greet by name. portal_password is what we authenticate against.
-          properties: ["email", "portal_password", "admin_role", "firstname"]
+          properties: ["email", "portal_password", "admin_role", "firstname", "portal_token_version"]
         })
       }
     );
@@ -61,14 +63,22 @@ export async function handler(event) {
       };
     }
 
+    const adminRole = contact.properties?.admin_role || null;
+    const ver = parseInt(contact.properties?.portal_token_version || "0", 10) || 0;
+    // Signed session token — the browser stores this and sends it as a Bearer
+    // header on every API call. Identity (email/role) is read from the token
+    // server-side, so the client can no longer assert who it is.
+    const token = createToken({ email: cleanEmail, role: adminRole || "", ver });
+
     return {
       statusCode: 200,
       body: JSON.stringify({
         success: true,
+        token,
         email: cleanEmail,
         // Optional fields. The login page checks adminRole to decide
         // whether to land the user on /admin.html or the regular portal.
-        adminRole: contact.properties?.admin_role || null,
+        adminRole,
         firstName: contact.properties?.firstname || null
       })
     };

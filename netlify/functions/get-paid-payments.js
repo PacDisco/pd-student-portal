@@ -8,17 +8,14 @@
 // dates appear as "2026-03-12", "27 March 2026", "22.2.26", etc., and commas
 // are occasionally misplaced. The parser below pulls out whatever it can.
 
+import { authenticate, authError } from "./_shared/auth.js";
+
 export async function handler(event) {
   try {
-    const email = event.queryStringParameters?.email;
-    if (!email) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: "Missing email" })
-      };
-    }
-
-    const cleanEmail = email.toLowerCase().trim();
+    // Email from the verified token — a user only sees their own payments.
+    let identity;
+    try { identity = await authenticate(event); } catch (e) { return authError(e); }
+    const cleanEmail = identity.email;
 
     const headers = {
       Authorization: `Bearer ${process.env.HUBSPOT_API_KEY}`,

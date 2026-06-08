@@ -41,16 +41,21 @@ const WHO_LABELS         = ["whos filling out the report", "who is filling out t
 const WEEK_NAMES         = ["weekofprogram", "week"];
 const WEEK_LABELS        = ["week of program", "week"];
 
+import { authenticate, authError } from "./_shared/auth.js";
+
 export async function handler(event) {
   try {
-    const { email, portalId, formId } = event.queryStringParameters || {};
+    const { portalId, formId } = event.queryStringParameters || {};
 
     if (!portalId) {
       return jsonResponse(400, { error: "Missing portalId" });
     }
-    if (!email) {
-      return jsonResponse(401, { error: "Authentication required" });
-    }
+
+    // Email from the verified token; instructor/admin gate runs below.
+    let identity;
+    try { identity = await authenticate(event); } catch (e) { return authError(e); }
+    const email = identity.email;
+
     if (!process.env.HUBSPOT_API_KEY) {
       return jsonResponse(500, { error: "HubSpot is not configured" });
     }

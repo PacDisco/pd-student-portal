@@ -1,5 +1,7 @@
+import { authenticate, authError } from "./_shared/auth.js";
+
 /**
- * GET /.netlify/functions/get-gallery-link?email=<email>&picked=<portalId>
+ * GET /.netlify/functions/get-gallery-link?picked=<portalId> (email from token)
  *
  * Server-side bridge between the student portal and pd-media's gallery
  * signer. Verifies that the logged-in user actually has access to the
@@ -44,8 +46,11 @@ function deriveSeasonYear(props) {
 }
 
 export async function handler(event) {
-  const { email, picked } = event.queryStringParameters || {};
-  if (!email)  return json(400, { error: "Missing email" });
+  // Email from the verified token, never the request.
+  let identity;
+  try { identity = await authenticate(event); } catch (e) { return authError(e); }
+  const email = identity.email;
+  const { picked } = event.queryStringParameters || {};
 
   const apiKey = process.env.HUBSPOT_API_KEY;
   if (!apiKey) return json(500, { error: "HUBSPOT_API_KEY env var is not set" });

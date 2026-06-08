@@ -14,6 +14,8 @@
 //
 // Required env var: HUBSPOT_API_KEY (write access to contacts).
 
+import { authenticate, authError } from "./_shared/auth.js";
+
 export async function handler(event) {
   try {
     if (event.httpMethod !== "POST") {
@@ -23,14 +25,18 @@ export async function handler(event) {
       return jsonResponse(500, { error: "HUBSPOT_API_KEY is not set" });
     }
 
+    // Email from the verified token — a user only registers push for themself.
+    let identity;
+    try { identity = await authenticate(event); } catch (e) { return authError(e); }
+    const email = identity.email;
+
     let body;
     try { body = JSON.parse(event.body || "{}"); }
     catch (_) { return jsonResponse(400, { error: "Invalid JSON body" }); }
 
-    const email = (body.email || "").toLowerCase().trim();
     const subscription = body.subscription;
-    if (!email || !subscription || !subscription.endpoint) {
-      return jsonResponse(400, { error: "Missing email or subscription.endpoint" });
+    if (!subscription || !subscription.endpoint) {
+      return jsonResponse(400, { error: "Missing subscription.endpoint" });
     }
 
     const headers = {

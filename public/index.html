@@ -2161,6 +2161,33 @@
 </div>
 
 <script>
+  /* --- session: attach Bearer token to all function calls; 401 -> login --- */
+  (function(){
+    var _f = window.fetch;
+    window.fetch = function(input, init){
+      init = init || {};
+      try {
+        var u = typeof input === "string" ? input : (input && input.url) || "";
+        if (u.indexOf("/.netlify/functions/") !== -1) {
+          var t = sessionStorage.getItem("portalToken");
+          if (t) {
+            var h = new Headers(init.headers || (typeof input !== "string" && input.headers) || {});
+            if (!h.has("Authorization")) h.set("Authorization", "Bearer " + t);
+            init = Object.assign({}, init, { headers: h });
+          }
+        }
+      } catch (e) {}
+      return _f.call(this, input, init).then(function(res){
+        try {
+          if (res && res.status === 401 && location.pathname.indexOf("login") === -1) {
+            sessionStorage.removeItem("portalToken");
+            location.href = "/login.html";
+          }
+        } catch (e) {}
+        return res;
+      });
+    };
+  })();
   const email = sessionStorage.getItem("portalEmail");
   if (!email) window.location.href = "/login.html";
 
@@ -5238,7 +5265,12 @@
     return t >= cutoff;
   }
 
-  function logout() {
+  async function logout() {
+    const t = sessionStorage.getItem("portalToken");
+    // Revoke the session server-side (bumps portal_token_version) before
+    // clearing local state, so a captured token can't be reused after logout.
+    try { if (t) await fetch("/.netlify/functions/logout", { method: "POST", headers: { Authorization: "Bearer " + t }, keepalive: true }); } catch (_) {}
+    sessionStorage.removeItem("portalToken");
     sessionStorage.removeItem("portalEmail");
     sessionStorage.removeItem("adminRole");
     sessionStorage.removeItem("firstName");

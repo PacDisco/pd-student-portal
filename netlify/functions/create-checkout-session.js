@@ -44,6 +44,8 @@
 //                                    sepa_debit       → EUR
 //                                    acss_debit       → CAD
 
+import { authenticate, authError } from "./_shared/auth.js";
+
 export async function handler(event) {
   try {
     if (event.httpMethod !== "POST") {
@@ -52,6 +54,11 @@ export async function handler(event) {
         body: JSON.stringify({ error: "Method not allowed" })
       };
     }
+
+    // Email from the verified token — the payer is the authenticated user.
+    let identity;
+    try { identity = await authenticate(event); } catch (e) { return authError(e); }
+    const payerEmail = identity.email;
 
     if (!process.env.STRIPE_SECRET_KEY) {
       return {
@@ -74,17 +81,14 @@ export async function handler(event) {
     }
 
     const {
-      email,
       paymentIndex,
       baseAmount,
       chargeAmount,
       description,
       paymentType: rawPaymentType
     } = body;
-
-    if (!email) {
-      return { statusCode: 400, body: JSON.stringify({ error: "Missing email" }) };
-    }
+    // The payer is always the authenticated user; ignore any body-supplied email.
+    const email = payerEmail;
     const charge = parseFloat(chargeAmount);
     if (!isFinite(charge) || charge <= 0) {
       return { statusCode: 400, body: JSON.stringify({ error: "Missing or invalid chargeAmount" }) };

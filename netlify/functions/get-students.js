@@ -10,9 +10,11 @@
 // value out of each deal payment_N string ("250, pi_xxx, 2026-03-12"), and
 // sums them.
 
+import { authenticate, authError } from "./_shared/auth.js";
+
 export async function handler(event) {
   try {
-    const { portalId, email } = event.queryStringParameters || {};
+    const { portalId } = event.queryStringParameters || {};
 
     if (!portalId) {
       return {
@@ -20,12 +22,12 @@ export async function handler(event) {
         body: JSON.stringify({ error: "Missing portalId" })
       };
     }
-    if (!email) {
-      return {
-        statusCode: 401,
-        body: JSON.stringify({ error: "Authentication required" })
-      };
-    }
+
+    // Identity from the verified token; the per-portal access check below
+    // then confirms this caller may view THIS portal's students.
+    let identity;
+    try { identity = await authenticate(event); } catch (e) { return authError(e); }
+    const email = identity.email;
 
     const OBJECT = "2-58411705";
     const headers = {

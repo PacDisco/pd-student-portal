@@ -20,13 +20,18 @@ const DEFAULT_FORM_IDS = (process.env.JOTFORM_APPLICATION_FORM_ID
   || "240277257210046")
   .split(",").map(s => s.trim()).filter(Boolean);
 
+import { authenticate, authError } from "./_shared/auth.js";
+
 export async function handler(event) {
   try {
-    const { email, formId } = event.queryStringParameters || {};
+    const { formId } = event.queryStringParameters || {};
 
-    if (!email) {
-      return { statusCode: 400, body: JSON.stringify({ error: "Missing email" }) };
-    }
+    // Identity comes from the verified session token, never the request — a
+    // user can only ever read their OWN application submission.
+    let identity;
+    try { identity = await authenticate(event); } catch (e) { return authError(e); }
+    const email = identity.email;
+
     if (!process.env.JOTFORM_API_KEY) {
       return {
         statusCode: 500,

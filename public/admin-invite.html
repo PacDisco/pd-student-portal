@@ -153,6 +153,33 @@
 </main>
 
 <script>
+  /* --- session: attach Bearer token to all function calls; 401 -> login --- */
+  (function(){
+    var _f = window.fetch;
+    window.fetch = function(input, init){
+      init = init || {};
+      try {
+        var u = typeof input === "string" ? input : (input && input.url) || "";
+        if (u.indexOf("/.netlify/functions/") !== -1) {
+          var t = sessionStorage.getItem("portalToken");
+          if (t) {
+            var h = new Headers(init.headers || (typeof input !== "string" && input.headers) || {});
+            if (!h.has("Authorization")) h.set("Authorization", "Bearer " + t);
+            init = Object.assign({}, init, { headers: h });
+          }
+        }
+      } catch (e) {}
+      return _f.call(this, input, init).then(function(res){
+        try {
+          if (res && res.status === 401 && location.pathname.indexOf("login") === -1) {
+            sessionStorage.removeItem("portalToken");
+            location.href = "/login.html";
+          }
+        } catch (e) {}
+        return res;
+      });
+    };
+  })();
   // Hard guard: only logged-in admins should see this page.
   const inviterEmail = sessionStorage.getItem("portalEmail");
   const inviterRole  = sessionStorage.getItem("adminRole");

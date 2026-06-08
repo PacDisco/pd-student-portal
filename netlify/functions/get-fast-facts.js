@@ -99,16 +99,21 @@ const COLUMNS = [
   { header: "Please choose your t-shirt size" }
 ];
 
+import { authenticate, authError } from "./_shared/auth.js";
+
 export async function handler(event) {
   try {
-    const { portalId, email, formId } = event.queryStringParameters || {};
+    const { portalId, formId } = event.queryStringParameters || {};
 
     if (!portalId) {
       return { statusCode: 400, body: JSON.stringify({ error: "Missing portalId" }) };
     }
-    if (!email) {
-      return { statusCode: 401, body: JSON.stringify({ error: "Authentication required" }) };
-    }
+
+    // Identity from the verified token; checkAdminAccess below still gates.
+    let identity;
+    try { identity = await authenticate(event); } catch (e) { return authError(e); }
+    const email = identity.email;
+
     if (!process.env.HUBSPOT_API_KEY) {
       return { statusCode: 500, body: JSON.stringify({ error: "HubSpot is not configured" }) };
     }
