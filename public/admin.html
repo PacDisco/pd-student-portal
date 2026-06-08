@@ -173,7 +173,7 @@
       return _f.call(this, input, init).then(function(res){
         try {
           if (res && res.status === 401 && location.pathname.indexOf("login") === -1) {
-            sessionStorage.removeItem("portalToken");
+            sessionStorage.clear();
             location.href = "/login.html";
           }
         } catch (e) {}

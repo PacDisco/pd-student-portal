@@ -159,9 +159,10 @@
 </div>
 
 <script>
-  // If already logged in go straight to the right landing page.
-  // Admins land on /admin.html (the trip picker); everyone else on /index.html.
-  if (sessionStorage.getItem("portalEmail")) {
+  // If already logged in go straight to the right landing page. Require BOTH
+  // a session token AND email — otherwise a stale, token-less session would
+  // bounce straight back here from a 401, causing an admin↔login flicker loop.
+  if (sessionStorage.getItem("portalToken") && sessionStorage.getItem("portalEmail")) {
     const role = sessionStorage.getItem("adminRole");
     window.location.href = role ? "/admin.html" : "/index.html";
   }

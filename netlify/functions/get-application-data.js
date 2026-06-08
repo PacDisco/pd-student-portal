@@ -24,13 +24,20 @@ import { authenticate, authError } from "./_shared/auth.js";
 
 export async function handler(event) {
   try {
-    const { formId } = event.queryStringParameters || {};
+    const params = event.queryStringParameters || {};
+    const formId = params.formId;
 
-    // Identity comes from the verified session token, never the request — a
-    // user can only ever read their OWN application submission.
+    // Caller identity from the verified token. A regular user (no admin_role)
+    // may only read their OWN application. Admins/instructors/teachers may
+    // read a specified student's application (the medical / application
+    // modals on the instructor + teacher tabs rely on this).
     let identity;
     try { identity = await authenticate(event); } catch (e) { return authError(e); }
-    const email = identity.email;
+    const requested = String(params.email || "").toLowerCase().trim();
+    if (requested && requested !== identity.email && !identity.role) {
+      return { statusCode: 403, body: JSON.stringify({ error: "Not authorized to view this application." }) };
+    }
+    const email = requested || identity.email;
 
     if (!process.env.JOTFORM_API_KEY) {
       return {

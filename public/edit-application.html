@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Edit Application — Pacific Discovery</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #1a1a1a; background: #f4f5f7; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 28px 18px 80px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: #666; font-size: 13px; margin: 0 0 24px; }
+  .note { background: #eef1f6; border-left: 4px solid #3B5998; padding: 12px 14px; font-size: 13px; color: #444; border-radius: 0 4px 4px 0; margin-bottom: 22px; }
+  .field { background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; padding: 14px 16px; margin-bottom: 10px; }
+  .field label { display: block; font-size: 12px; font-weight: 600; letter-spacing: 0.3px; color: #555; margin-bottom: 6px; }
+  .field input { width: 100%; padding: 9px 11px; font-size: 14px; border: 1px solid #d6d9e0; border-radius: 4px; }
+  .field input:focus { outline: none; border-color: #3B5998; }
+  .ro { color: #1a1a1a; font-size: 14px; font-weight: 500; }
+  .badge { display: inline-block; font-size: 11px; letter-spacing: 0.5px; padding: 3px 9px; border-radius: 3px; background: #f1f3f7; color: #555; }
+  .badge.on { background: #e1f0e8; color: #1d6e4f; }
+  .badge.lock { background: #fbeaea; color: #a33; }
+  .sensitive-hint { font-size: 11px; color: #999; margin-top: 5px; }
+  .addr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .addr-grid .full { grid-column: 1 / -1; }
+  .bar { position: sticky; bottom: 0; background: #fff; border-top: 1px solid #e5e7eb; padding: 14px 18px; display: flex; gap: 12px; align-items: center; justify-content: flex-end; }
+  button { padding: 10px 22px; background: #3B5998; color: #fff; border: none; border-radius: 4px; font-size: 13px; font-weight: 600; letter-spacing: 0.5px; cursor: pointer; }
+  button:hover { opacity: 0.9; }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .secondary { background: #e9ebef; color: #333; }
+  .msg { font-size: 13px; }
+  .msg.ok { color: #1d6e4f; }
+  .msg.err { color: #a33; }
+  .status { text-align: center; color: #888; padding: 40px 0; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Edit your application</h1>
+  <p class="sub" id="sub"></p>
+  <div class="note">
+    For your privacy, sensitive details (passport, medical, health) are hidden and shown as
+    <strong>••••••</strong>. Leave those blank to keep what's on file, or type a new value to replace it.
+    Your name and email can't be changed here — contact us if they need updating.
+  </div>
+  <div id="fields"><div class="status">Loading your application…</div></div>
+</div>
+<div class="bar" id="bar" style="display:none;">
+  <span class="msg" id="msg"></span>
+  <button type="button" class="secondary" onclick="window.location.href='/index.html'">Back</button>
+  <button type="button" id="saveBtn" onclick="saveApplication()">Save changes</button>
+</div>
+
+<script>
+  /* --- session: attach Bearer token to all function calls; 401 -> login --- */
+  (function(){
+    var _f = window.fetch;
+    window.fetch = function(input, init){
+      init = init || {};
+      try {
+        var u = typeof input === "string" ? input : (input && input.url) || "";
+        if (u.indexOf("/.netlify/functions/") !== -1) {
+          var t = sessionStorage.getItem("portalToken");
+          if (t) {
+            var h = new Headers(init.headers || (typeof input !== "string" && input.headers) || {});
+            if (!h.has("Authorization")) h.set("Authorization", "Bearer " + t);
+            init = Object.assign({}, init, { headers: h });
+          }
+        }
+      } catch (e) {}
+      return _f.call(this, input, init).then(function(res){
+        try {
+          if (res && res.status === 401 && location.pathname.indexOf("login") === -1) {
+            sessionStorage.clear();
+            location.href = "/login.html";
+          }
+        } catch (e) {}
+        return res;
+      });
+    };
+  })();
+
+  if (!sessionStorage.getItem("portalToken")) window.location.href = "/login.html";
+
+  const esc = s => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  let FIELDS = [];
+
+  function fieldHtml(f) {
+    const labelHtml = `<label>${esc(f.label)}</label>`;
+    if (f.kind === "address") {
+      const a = f.address || {};
+      const inp = (k, ph, full) =>
+        `<input data-qid="${esc(f.qid)}" data-sub="${k}" data-orig="${esc(a[k] || "")}" value="${esc(a[k] || "")}" placeholder="${ph}"${full ? "" : ""}>`;
+      return `<div class="field">${labelHtml}
+        <div class="addr-grid">
+          <div class="full">${inp("addr_line1","Address line 1")}</div>
+          <div class="full">${inp("addr_line2","Address line 2")}</div>
+          ${inp("city","City")}
+          ${inp("state","State / region")}
+          ${inp("postal","Postal code")}
+          ${inp("country","Country")}
+        </div></div>`;
+    }
+    if (f.kind === "file") {
+      return `<div class="field">${labelHtml}
+        <span class="badge ${f.hasValue ? "on" : ""}">${f.hasValue ? "On file" : "Not provided"}</span></div>`;
+    }
+    // text
+    if (f.readOnly) {
+      if (f.sensitive) {
+        return `<div class="field">${labelHtml}
+          <span class="badge lock">${f.hasValue ? "Provided · hidden" : "Not provided"}</span></div>`;
+      }
+      return `<div class="field">${labelHtml}<div class="ro">${esc(f.value || "—")}</div>
+        <span class="badge lock">Can't be changed here</span></div>`;
+    }
+    // editable
+    if (f.sensitive) {
+      const ph = f.hasValue ? "•••••• — leave blank to keep current" : "Not provided — type to add";
+      return `<div class="field">${labelHtml}
+        <input data-qid="${esc(f.qid)}" data-sensitive="1" value="" placeholder="${esc(ph)}">
+        <div class="sensitive-hint">Hidden for privacy. Type a new value only if you want to change it.</div></div>`;
+    }
+    return `<div class="field">${labelHtml}
+      <input data-qid="${esc(f.qid)}" data-orig="${esc(f.value || "")}" value="${esc(f.value || "")}"></div>`;
+  }
+
+  async function load() {
+    try {
+      const res = await fetch("/.netlify/functions/get-application");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { document.getElementById("fields").innerHTML = `<div class="status">Could not load your application.</div>`; return; }
+      if (!data.found) {
+        document.getElementById("fields").innerHTML = `<div class="status">We couldn't find an application for your account yet. If you recently submitted one, check back shortly.</div>`;
+        return;
+      }
+      FIELDS = Array.isArray(data.fields) ? data.fields : [];
+      if (data.submittedAt) {
+        const d = new Date(data.submittedAt);
+        if (!isNaN(d)) document.getElementById("sub").textContent = "Submitted " + d.toLocaleDateString("en-NZ", { year:"numeric", month:"short", day:"numeric" });
+      }
+      document.getElementById("fields").innerHTML = FIELDS.map(fieldHtml).join("");
+      document.getElementById("bar").style.display = "flex";
+    } catch (e) {
+      document.getElementById("fields").innerHTML = `<div class="status">Could not load your application. Please try again in a minute.</div>`;
+    }
+  }
+
+  function collectChanges() {
+    const changes = {};
+    document.querySelectorAll("#fields input").forEach(inp => {
+      const qid = inp.getAttribute("data-qid");
+      if (!qid) return;
+      const sub = inp.getAttribute("data-sub");
+      const val = inp.value;
+      if (sub) {
+        // address subfield — include only if changed
+        if (val !== (inp.getAttribute("data-orig") || "")) {
+          changes[qid] = changes[qid] || {};
+          changes[qid][sub] = val;
+        }
+      } else if (inp.getAttribute("data-sensitive") === "1") {
+        // sensitive — include only if the user typed something
+        if (val.trim() !== "") changes[qid] = val;
+      } else {
+        // normal editable — include only if changed
+        if (val !== (inp.getAttribute("data-orig") || "")) changes[qid] = val;
+      }
+    });
+    return changes;
+  }
+
+  async function saveApplication() {
+    const btn = document.getElementById("saveBtn");
+    const msg = document.getElementById("msg");
+    const changes = collectChanges();
+    if (Object.keys(changes).length === 0) {
+      msg.className = "msg"; msg.textContent = "No changes to save.";
+      return;
+    }
+    btn.disabled = true; msg.className = "msg"; msg.textContent = "Saving…";
+    try {
+      const res = await fetch("/.netlify/functions/update-application", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ changes })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        msg.className = "msg ok";
+        msg.textContent = `Saved ${data.updated} change${data.updated === 1 ? "" : "s"}.`;
+        // Reload so sensitive fields re-mask and edited values reflect.
+        setTimeout(load, 900);
+      } else {
+        msg.className = "msg err";
+        msg.textContent = data.error || "Could not save. Please try again.";
+      }
+    } catch (e) {
+      msg.className = "msg err";
+      msg.textContent = "Could not save. Please try again.";
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  load();
+</script>
+</body>
+</html>
