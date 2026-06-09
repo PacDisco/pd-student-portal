@@ -2115,14 +2115,9 @@
     PHOTO ALBUM
   </div>
 
-  <!-- The INSTRUCTOR RESOURCES (#tripLeaderTile) and INSTRUCTOR PI FOLDER
-       (#teacherTile) tiles are not in the static markup. They are
-       injected by injectInstructorTilesIfAuthorized() in applyVisibility
-       below, but ONLY after the user's association labels + admin_role
-       have been read off the portal response. That way the tiles aren't
-       even visible in view-source unless the user is actually authorized
-       to see them. Server-side endpoints still enforce access in case the
-       client logic is bypassed. -->
+  <!-- Instructor tabs (INSTRUCTOR RESOURCES + INSTRUCTOR PI FOLDER) have been
+       removed from this portal; instructors use the separate instructor site.
+       injectInstructorTilesIfAuthorized() is now a no-op. -->
 
 
 </div>
@@ -2157,22 +2152,6 @@
       <button class="app-modal-close" type="button" onclick="closeApplicationModal()" aria-label="Close">&times;</button>
     </div>
     <div id="appModalBody" class="app-modal-body">
-      <div class="application-detail-empty">LOADING…</div>
-    </div>
-  </div>
-</div>
-
-<div id="fastFactsModal" class="app-modal" hidden>
-  <div class="app-modal-backdrop" onclick="closeFastFactsModal()"></div>
-  <div class="app-modal-content ff-modal-content" role="dialog" aria-modal="true" aria-labelledby="fastFactsTitle">
-    <div class="app-modal-header">
-      <div>
-        <h2 id="fastFactsTitle">FAST FACTS CARDS</h2>
-        <span id="fastFactsSubject" class="app-modal-subject"></span>
-      </div>
-      <button class="app-modal-close" type="button" onclick="closeFastFactsModal()" aria-label="Close">&times;</button>
-    </div>
-    <div id="fastFactsBody" class="app-modal-body">
       <div class="application-detail-empty">LOADING…</div>
     </div>
   </div>
@@ -3737,88 +3716,6 @@
         return;
       }
 
-      if (field === "teacher_information_content") {
-        // Teacher tab — same three-section layout as Trip Leader:
-        //   1. Resource link grid (Student Manual, Generic RA, etc.).
-        //      Configure via TEACHER_LINKS above. Hidden when all URLs
-        //      are blank on both the trip and global records.
-        //   2. The teacher_information_content rich-text block.
-        //   3. Student list, with each card opening the full
-        //      Application Information modal.
-        const linksHtml    = renderResourceLinkGrid(TEACHER_LINKS);
-        const richTextHtml = portalData[field] || "";
-        content.innerHTML  = linksHtml + richTextHtml;
-        content.style.opacity = 1;
-        styleLinksAsButtons();
-        await loadStudentList(content, { applicationModal: true });
-        return;
-      }
-
-      if (field === "trip_leader_information_content") {
-        // Instructor Resources tab — three sections, top to bottom:
-        //   1. Files from the central HubSpot Files "Instructor Resources"
-        //      folder (id 212982599465). Live-fetched from HubSpot so any
-        //      file added there shows up here without a code change. Each
-        //      file becomes a clickable card with the file name + a
-        //      "VIEW" button. Falls back to a "couldn't load" stub if the
-        //      API errors out (e.g., missing files scope on the private app).
-        //   2. The trip_leader_information_content rich-text block from the
-        //      Program record — anything the school types into HubSpot.
-        //   3. The student list, with each card opening a Medical
-        //      Information modal (filtered subset of the application form).
-        content.innerHTML = renderKeyContacts() + `<div class="docs-section">
-            <div class="docs-section-label sec-accent" style="--accent:#e8694a;">QUICKLINKS</div>
-            <div class="tl-link-grid">
-              <div class="tl-link-card">
-                <div class="tl-link-title">FAST FACTS CARDS</div>
-                <div class="tl-link-meta">Printable 5×7 cards · one set per participant</div>
-                <button type="button" class="tl-link-btn" onclick="openFastFactsModal()">VIEW / PRINT CARDS</button>
-              </div>
-              <div class="tl-link-card">
-                <div class="tl-link-title">UPLOAD PHOTOS / VIDEOS</div>
-                <img class="tl-qr" src="qr-upload-media.svg" alt="QR code linking to media.pacificdiscovery.org" width="140" height="140">
-                <a href="https://media.pacificdiscovery.org" target="_blank" rel="noopener" class="tl-link-btn">UPLOAD</a>
-              </div>
-              <div class="tl-link-card">
-                <div class="tl-link-title">PROGRAM REPORTS</div>
-                <div class="tl-link-meta">Submit &amp; view trip reports</div>
-                <button type="button" class="tl-link-btn" onclick="loadSection('program_reports')">OPEN REPORTS</button>
-              </div>
-            </div>
-          </div>
-          <div class="docs-section" id="instructorFoldersSection">
-            <div class="docs-section-label sec-accent" style="--accent:#3B5998;">RESOURCE FOLDERS</div>
-            <div id="instructorFoldersContainer"><span style="font-size:13px; color:#999;">Loading folders...</span></div>
-          </div>` + (portalData[field] || "");
-        content.style.opacity = 1;
-        styleLinksAsButtons();
-        await loadStudentList(content, { expandable: true });
-        // Fire the folder fetch in parallel with the student list — slots
-        // the file grid into the placeholder above when it returns.
-        loadInstructorFiles().catch(err => {
-          console.error("Instructor files load error:", err);
-        });
-        return;
-      }
-
-      if (field === "program_reports") {
-        // Program Reports — reached from the QUICKLINKS card on the
-        // Instructor Resources tab. Shows the prefilled Jotform (so each
-        // submission is tagged with this program's id) plus every report
-        // already filed for this program, each linking to Jotform to edit.
-        const portalId    = String(portalData.hs_object_id || "").trim();
-        const callerEmail = sessionStorage.getItem("portalEmail") || "";
-        const programName = (portalData.program_name || portalData.portal_title || "").toString();
-        content.innerHTML = renderProgramReports(portalId, callerEmail, programName);
-        content.style.opacity = 1;
-        // Intentionally NOT calling styleLinksAsButtons() — the EDIT links
-        // already carry the tl-link-btn style and shouldn't be recoloured.
-        loadProgramReportsList(portalId, callerEmail).catch(err => {
-          console.error("Program reports load error:", err);
-        });
-        return;
-      }
-
       if (field === "general_information_content") {
         // Manuals / Resources tab — top: three URL cards (Student Manual,
         // Student Handbook, Gear List) from the Program record's URL
@@ -5262,40 +5159,9 @@
   }
 
   function injectInstructorTilesIfAuthorized(labels = [], viewerAdminRole = "") {
-    const grid = document.querySelector(".grid");
-    if (!grid) return;
-
-    // Both instructor tiles require a non-empty admin_role. Students and
-    // parents (no admin_role) never see either.
-    if (!viewerAdminRole) return;
-
-    // INSTRUCTOR PI FOLDER — global, evergreen. Shown to every admin
-    // (independent of program association or end-date).
-    grid.insertAdjacentHTML("beforeend", `
-      <div id="teacherTile" class="tile" onclick="loadSection('teacher_information_content')">
-        INSTRUCTOR PI FOLDER
-      </div>
-    `);
-
-    // INSTRUCTOR RESOURCES — program-specific. Three required conditions
-    // (in addition to the admin_role check above):
-    //   1. Caller is program-associated as "Instructor"
-    //   2. Program has not ended more than 7 days ago
-    //   3. (Admin-viewing path bypasses both — admins reviewing a trip
-    //      need access regardless of association or recency.)
-    const isAdminView = new URLSearchParams(location.search).get("as_admin") === "1";
-    const isInstructorAssociated = Array.isArray(labels) && labels.includes("Instructor");
-    const endDateOk = isProgramWithinInstructorWindow(
-      portalData?.program_end_date,
-      7 // days past end date that the Instructor Resources tile stays visible
-    );
-    if (isAdminView || (isInstructorAssociated && endDateOk)) {
-      grid.insertAdjacentHTML("beforeend", `
-        <div id="tripLeaderTile" class="tile" onclick="loadSection('trip_leader_information_content')">
-          INSTRUCTOR RESOURCES
-        </div>
-      `);
-    }
+    // Instructor tabs (INSTRUCTOR PI FOLDER + INSTRUCTOR RESOURCES) have been
+    // removed from this portal — instructors use the separate instructor site.
+    // Intentionally a no-op; kept so the call site in applyVisibility is safe.
   }
 
   // Returns true if the program's end_date is either in the future or
