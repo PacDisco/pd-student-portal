@@ -95,13 +95,18 @@ export async function handler(event) {
         // number then name for a stable, predictable display.
         .sort((a, b) => (a.number - b.number) || a.name.localeCompare(b.name, "en", { sensitivity: "base" }));
 
+      // Each numbered folder carries a full nested tree (subfolders + files),
+      // bounded by depth and a per-request folder budget so a deep/wide tree
+      // can't blow the function timeout.
+      const budget = { count: 0 };
       for (const sub of numbered) {
-        const r = await fetchFolderFiles(sub.id, headers);
+        const tree = await loadFolderTree(sub.id, headers, 1, budget);
         folders.push({
           id: sub.id,
           name: sub.name,
           number: sub.number,
-          files: r.ok ? r.files : []
+          files: tree.files,
+          folders: tree.folders
         });
       }
     } catch (e) {
@@ -186,7 +191,33 @@ async function fetchSubfolders(folderId, headers) {
     after = data.paging?.next?.after;
     if (!after) break;
   }
+  // Numeric-aware sort so "1.", "2.", "10." order correctly alongside plain names.
+  out.sort((a, b) => a.name.localeCompare(b.name, "en", { numeric: true, sensitivity: "base" }));
   return out;
+}
+
+// Recursively load a folder's files AND nested subfolders (each with their own
+// files/subfolders). Bounded by MAX_DEPTH and a shared folder-count budget so a
+// deep or wide tree can't exhaust the function timeout. Fault-tolerant: a
+// failed branch just yields empty files/folders.
+const MAX_FOLDER_DEPTH = 4;
+const MAX_FOLDERS_PER_REQUEST = 80;
+
+async function loadFolderTree(folderId, headers, depth, budget) {
+  const r = await fetchFolderFiles(folderId, headers);
+  const files = r.ok ? r.files : [];
+  const folders = [];
+  if (depth < MAX_FOLDER_DEPTH && budget.count < MAX_FOLDERS_PER_REQUEST) {
+    let subs = [];
+    try { subs = await fetchSubfolders(folderId, headers); } catch (_) { subs = []; }
+    for (const sub of subs) {
+      if (budget.count >= MAX_FOLDERS_PER_REQUEST) break;
+      budget.count++;
+      const child = await loadFolderTree(sub.id, headers, depth + 1, budget);
+      folders.push({ id: sub.id, name: sub.name, files: child.files, folders: child.folders });
+    }
+  }
+  return { files, folders };
 }
 
 // Allowed if the caller has any non-empty admin_role. Fails closed on

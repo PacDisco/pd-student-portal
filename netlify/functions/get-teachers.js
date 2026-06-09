@@ -10,6 +10,7 @@
 // see who's accompanying the trip and a short bio of each trip leader.
 
 import { authenticate, authError } from "./_shared/auth.js";
+import { proxyRef } from "./_shared/docref.js";
 
 export async function handler(event) {
   try {
@@ -366,6 +367,6 @@ function wrapIfJotform(url) {
     host === "jotfor.ms"   || host.endsWith(".jotfor.ms")
   );
   return isJotform
-    ? `/document-proxy?url=${encodeURIComponent(finalUrl)}`
+    ? proxyRef(finalUrl)
     : finalUrl;
 }

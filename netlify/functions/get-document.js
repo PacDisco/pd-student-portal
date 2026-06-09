@@ -19,11 +19,17 @@
 //     under that.
 //   - 10-second function timeout. Slow upstream fetches will be cut off.
 
+import { verifyDocRef } from "./_shared/docref.js";
+
 export async function handler(event) {
   try {
-    const { url } = event.queryStringParameters || {};
-    if (!url) {
-      return { statusCode: 400, body: JSON.stringify({ error: "Missing url" }) };
+    // Only an opaque, HMAC-signed ref is accepted (see _shared/docref.js).
+    // The raw Jotform URL — whose path contains the submission ID — never
+    // travels through the client. (Edge /document-proxy is the primary path;
+    // this fallback is kept in lockstep so it can't be an open relay.)
+    const { ref } = event.queryStringParameters || {};
+    if (!ref) {
+      return { statusCode: 400, body: JSON.stringify({ error: "Missing ref" }) };
     }
     if (!process.env.JOTFORM_API_KEY) {
       return {
@@ -35,11 +41,16 @@ export async function handler(event) {
       };
     }
 
+    const decodedUrl = verifyDocRef(ref);
+    if (!decodedUrl) {
+      return { statusCode: 403, body: JSON.stringify({ error: "Invalid or expired reference" }) };
+    }
+
     // Refuse to proxy anything that isn't a Jotform URL — this endpoint
     // would otherwise be an open relay for any URL on the internet.
     let target;
     try {
-      target = new URL(url);
+      target = new URL(decodedUrl);
     } catch (_) {
       return { statusCode: 400, body: JSON.stringify({ error: "Invalid url" }) };
     }

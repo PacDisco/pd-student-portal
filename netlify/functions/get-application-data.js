@@ -21,6 +21,7 @@ const DEFAULT_FORM_IDS = (process.env.JOTFORM_APPLICATION_FORM_ID
   .split(",").map(s => s.trim()).filter(Boolean);
 
 import { authenticate, authError } from "./_shared/auth.js";
+import { proxyRef } from "./_shared/docref.js";
 
 export async function handler(event) {
   try {
@@ -170,8 +171,10 @@ function formatAnswer(a) {
   if (v == null) return null;
 
   if (t === "control_fileupload") {
-    if (Array.isArray(v)) return v.filter(Boolean);
-    return v ? [String(v)] : [];
+    // Return signed /document-proxy?ref= URLs, never raw Jotform file URLs —
+    // their path contains the submission ID. The browser links to these as-is.
+    const urls = Array.isArray(v) ? v.filter(Boolean) : (v ? [String(v)] : []);
+    return urls.map(u => proxyRef(u)).filter(Boolean);
   }
 
   if (t === "control_datetime" && typeof v === "object") {

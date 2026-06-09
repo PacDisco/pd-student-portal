@@ -11,6 +11,7 @@
 // sums them.
 
 import { authenticate, authError } from "./_shared/auth.js";
+import { proxyRef } from "./_shared/docref.js";
 
 export async function handler(event) {
   try {
@@ -157,9 +158,7 @@ export async function handler(event) {
         // portrait photos routinely exceed the 6MB synchronous-function
         // response cap. The edge function streams the upstream body straight
         // through, supporting files up to ~20MB. Null when there's no match.
-        portraitUrl: rawUrl
-          ? `/document-proxy?url=${encodeURIComponent(rawUrl)}`
-          : null
+        portraitUrl: rawUrl ? proxyRef(rawUrl) : null
       };
     });
 

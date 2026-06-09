@@ -20,13 +20,25 @@
 
 export default async (request, context) => {
   const url = new URL(request.url);
-  const target = url.searchParams.get("url");
 
+  // The browser only ever gets an opaque, HMAC-signed `ref` (see
+  // _shared/docref.js). We verify + decode it server-side, so the real
+  // Jotform URL (and the submission ID in its path) never reaches the client.
+  // Raw `?url=` is intentionally no longer accepted.
+  const ref = url.searchParams.get("ref");
+  if (!ref) {
+    return jsonResponse({ error: "Missing ref" }, 400);
+  }
+  const secret = Netlify.env.get("SESSION_SECRET");
+  if (!secret) {
+    return jsonResponse({ error: "Server is not configured" }, 500);
+  }
+  const target = await verifyRef(ref, secret);
   if (!target) {
-    return jsonResponse({ error: "Missing url" }, 400);
+    return jsonResponse({ error: "Invalid or expired reference" }, 403);
   }
 
-  // Validate the upstream URL.
+  // Validate the decoded upstream URL.
   let parsed;
   try {
     parsed = new URL(target);
@@ -112,6 +124,46 @@ function jsonResponse(payload, status) {
     status,
     headers: { "Content-Type": "application/json" }
   });
+}
+
+// Verify a signed doc-ref token and return the decoded URL, or null. Mirrors
+// netlify/functions/_shared/docref.js exactly:
+//   token = base64url(JSON({ u, e })) + "." + hex(HMAC_SHA256(payload))
+async function verifyRef(token, secret) {
+  const dot = token.lastIndexOf(".");
+  if (dot < 1) return null;
+  const payload = token.slice(0, dot);
+  const sigHex = token.slice(dot + 1);
+  const enc = new TextEncoder();
+  let ok = false;
+  try {
+    const key = await crypto.subtle.importKey(
+      "raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["verify"]
+    );
+    ok = await crypto.subtle.verify("HMAC", key, hexToBytes(sigHex), enc.encode(payload));
+  } catch (_) {
+    return null;
+  }
+  if (!ok) return null;
+  let obj;
+  try { obj = JSON.parse(b64urlDecode(payload)); } catch (_) { return null; }
+  if (!obj || !obj.u || !obj.e || Date.now() > Number(obj.e)) return null;
+  return String(obj.u);
+}
+
+function hexToBytes(hex) {
+  if (typeof hex !== "string" || hex.length % 2 || !/^[0-9a-fA-F]*$/.test(hex)) return new Uint8Array();
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
+  return out;
+}
+
+function b64urlDecode(s) {
+  let t = String(s).replace(/-/g, "+").replace(/_/g, "/");
+  while (t.length % 4) t += "=";
+  const bin = atob(t);
+  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
 }
 
 // Bind this edge function to /document-proxy. The frontend (and the URL

@@ -1790,6 +1790,21 @@
     .folder-panel { display: none; }
     .folder-panel.active { display: block; }
 
+    /* Nested folder navigation */
+    .folder-breadcrumb { font-size: 12px; color: #777; margin-bottom: 14px; }
+    .folder-breadcrumb .fb-crumb { color: #3B5998; cursor: pointer; font-weight: 600; }
+    .folder-breadcrumb .fb-crumb:hover { text-decoration: underline; }
+    .folder-breadcrumb .fb-sep { margin: 0 7px; color: #b0b4bd; }
+    .subfolder-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    .subfolder-chip {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 8px 13px; background: #fff; border: 1px solid #d6d9e0;
+      border-radius: 6px; font-size: 13px; font-weight: 600; color: #2c3140;
+      cursor: pointer; transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .subfolder-chip:hover { background: #eef1f6; border-color: #3B5998; }
+    .subfolder-chip svg { color: #3B5998; flex: 0 0 auto; }
+
     /* PROGRAM REPORTS (form embed + submissions list) */
     .pr-form {
       width: 100%; min-height: 900px; border: 1px solid #e5e7eb;
@@ -2426,6 +2441,9 @@
         hideFolders();
       } else {
         if (foldersSec) foldersSec.style.display = "";
+        __instrFolders = folders;
+        __instrSel = 0;
+        __instrPath = [];
         const cards = folders.map((fld, i) => {
           const desc = folderDescription(fld);
           return `<button type="button" class="folder-card${i === 0 ? " active" : ""}" data-idx="${i}" onclick="selectInstructorFolder(${i})">
@@ -2433,10 +2451,8 @@
             ${desc ? `<span class="folder-card-desc">${attrEsc(desc)}</span>` : ""}
           </button>`;
         }).join("");
-        const panels = folders.map((fld, i) =>
-          `<div class="folder-panel${i === 0 ? " active" : ""}" data-idx="${i}">${instructorFileGrid(Array.isArray(fld.files) ? fld.files : [])}</div>`
-        ).join("");
-        foldersEl.innerHTML = `<div class="folder-cards">${cards}</div><div class="folder-panels">${panels}</div>`;
+        foldersEl.innerHTML = `<div class="folder-cards">${cards}</div><div id="instructorFolderPanel"></div>`;
+        renderInstrFolderPanel();
       }
     }
   }
@@ -2444,13 +2460,65 @@
   // Tab switcher for the RESOURCE FOLDERS section — shows the selected
   // folder's contents and hides the rest. Global so the inline onclick can
   // reach it (same pattern as openFastFactsModal / printKeyContacts).
+  // ----- Resource Folders: nested navigation -----
+  // __instrFolders is the tree from get-instructor-files (each node: {name,
+  // files, folders}). __instrSel picks the top folder; __instrPath is the
+  // drill-down path of child indices below it.
+  let __instrFolders = [];
+  let __instrSel = 0;
+  let __instrPath = [];
+  const FOLDER_ICON = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
+
   function selectInstructorFolder(idx) {
+    __instrSel = idx;
+    __instrPath = [];
     const root = document.getElementById("instructorFoldersContainer");
-    if (!root) return;
-    root.querySelectorAll(".folder-card").forEach(b =>
+    if (root) root.querySelectorAll(".folder-card").forEach(b =>
       b.classList.toggle("active", Number(b.dataset.idx) === idx));
-    root.querySelectorAll(".folder-panel").forEach(p =>
-      p.classList.toggle("active", Number(p.dataset.idx) === idx));
+    renderInstrFolderPanel();
+  }
+
+  function instrCurrentNode() {
+    let node = __instrFolders[__instrSel];
+    if (!node) return null;
+    for (const i of __instrPath) { node = (node.folders || [])[i]; if (!node) return null; }
+    return node;
+  }
+
+  function instrEnterFolder(i) { __instrPath.push(i); renderInstrFolderPanel(); }
+  function instrCrumb(level) { __instrPath = __instrPath.slice(0, level); renderInstrFolderPanel(); }
+
+  function renderInstrFolderPanel() {
+    const panel = document.getElementById("instructorFolderPanel");
+    if (!panel) return;
+    const top = __instrFolders[__instrSel];
+    const node = instrCurrentNode();
+    if (!node) { panel.innerHTML = ""; return; }
+
+    // Breadcrumb — only once you've drilled below the top folder.
+    let crumbHtml = "";
+    if (__instrPath.length) {
+      const parts = [`<span class="fb-crumb" onclick="instrCrumb(0)">${attrEsc(top.name)}</span>`];
+      let walk = top;
+      __instrPath.forEach((idx, lvl) => {
+        walk = (walk.folders || [])[idx];
+        if (walk) parts.push(`<span class="fb-sep">›</span><span class="fb-crumb" onclick="instrCrumb(${lvl + 1})">${attrEsc(walk.name)}</span>`);
+      });
+      crumbHtml = `<div class="folder-breadcrumb">${parts.join("")}</div>`;
+    }
+
+    const subs = Array.isArray(node.folders) ? node.folders : [];
+    const subHtml = subs.length
+      ? `<div class="subfolder-row">${subs.map((s, i) =>
+          `<button type="button" class="subfolder-chip" onclick="instrEnterFolder(${i})">${FOLDER_ICON}<span>${attrEsc(s.name)}</span></button>`
+        ).join("")}</div>`
+      : "";
+
+    const files = Array.isArray(node.files) ? node.files : [];
+    // Only show the "no files" placeholder when there are also no subfolders.
+    const filesHtml = files.length ? instructorFileGrid(files) : (subs.length ? "" : instructorFileGrid(files));
+
+    panel.innerHTML = crumbHtml + subHtml + filesHtml;
   }
 
   // ============================================================
@@ -5109,7 +5177,7 @@
     if (t === "control_fileupload" && Array.isArray(field.value)) {
       const links = field.value
         .filter(Boolean)
-        .map(url => `<a href="/document-proxy?url=${encodeURIComponent(url)}" target="_blank" rel="noopener" class="application-field-file">VIEW</a>`)
+        .map(url => `<a href="${attrEsc(url)}" target="_blank" rel="noopener" class="application-field-file">VIEW</a>`)
         .join("");
       return `
         <div class="application-field">

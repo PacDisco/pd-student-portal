@@ -100,6 +100,7 @@ const COLUMNS = [
 ];
 
 import { authenticate, authError } from "./_shared/auth.js";
+import { proxyRef } from "./_shared/docref.js";
 
 export async function handler(event) {
   try {
@@ -201,7 +202,7 @@ export async function handler(event) {
         _email: student.email || "",
         _matched: !!submission,
         _submittedAt: submission?.created_at || null,
-        _portrait: portraitUrl ? `/document-proxy?url=${encodeURIComponent(portraitUrl)}` : null
+        _portrait: portraitUrl ? proxyRef(portraitUrl) : null
       };
     });
 

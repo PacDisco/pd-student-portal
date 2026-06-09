@@ -56,6 +56,7 @@ function isGenericUploadLabel(label) {
 }
 
 import { authenticate, authError } from "./_shared/auth.js";
+import { proxyRef } from "./_shared/docref.js";
 
 export async function handler(event) {
   try {
@@ -214,8 +215,9 @@ async function loadFormData(formId, cleanEmail, apiKey, baseUrl) {
       } catch (_) { /* leave default */ }
 
       out.documents.push({
-        submissionId: submission.id,
-        formId,
+        // NOTE: deliberately NOT exposing submission.id / formId here — a
+        // Jotform submission ID is enough to edit the raw submission via
+        // jotform.com/edit/<id>, which would bypass the secure editor.
         uploadedAt: submission.created_at || null,
         fieldLabel: f.fieldLabel,
         filename,
@@ -225,7 +227,7 @@ async function loadFormData(formId, cleanEmail, apiKey, baseUrl) {
         // documents — passport scans, medical PDFs, photos — can be larger
         // than the 6MB synchronous-function cap. The edge function streams
         // the upstream body straight through with no base64 overhead.
-        url: `/document-proxy?url=${encodeURIComponent(f.url)}`
+        url: proxyRef(f.url)
       });
     }
   }
