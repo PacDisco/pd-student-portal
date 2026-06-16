@@ -1322,6 +1322,87 @@
       margin-top: 8px;
     }
 
+    /* Bank-transfer (ACH / wire / SWIFT) callout */
+    .payment-bank-callout {
+      margin-top: 20px;
+      max-width: 720px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      padding: 16px 18px;
+      background: #f5f9fb;
+      border: 1px solid #d6e7ee;
+      border-left: 3px solid #55BBD2;
+    }
+    .payment-bank-callout-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #212121;
+    }
+    .payment-bank-callout-sub {
+      font-size: 12px;
+      color: #666;
+      margin-top: 2px;
+    }
+    .payment-bank-callout .payment-action-btn--secondary {
+      background: #55BBD2;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+    }
+
+    /* Bank-transfer modal body */
+    .bank-intro {
+      font-size: 14px;
+      line-height: 1.5;
+      color: #333;
+      margin: 0 0 18px;
+    }
+    .bank-details {
+      margin: 0;
+      border-top: 1px solid #e5e7eb;
+    }
+    .bank-detail-row {
+      display: flex;
+      gap: 16px;
+      padding: 10px 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .bank-detail-row dt {
+      flex: 0 0 200px;
+      font-size: 11px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #999;
+      margin: 0;
+      padding-top: 1px;
+    }
+    .bank-detail-row dd {
+      flex: 1 1 auto;
+      margin: 0;
+      font-size: 15px;
+      font-weight: 600;
+      color: #212121;
+      word-break: break-word;
+    }
+    .bank-detail-hint {
+      display: block;
+      font-size: 11px;
+      font-weight: 400;
+      color: #888;
+      margin-top: 2px;
+    }
+    .bank-note {
+      font-size: 12px;
+      color: #666;
+      margin: 18px 0 0;
+    }
+    @media (max-width: 480px) {
+      .bank-detail-row { flex-direction: column; gap: 2px; }
+      .bank-detail-row dt { flex-basis: auto; }
+    }
+
     .payment-history {
       margin-top: 32px;
       max-width: 720px;
@@ -2153,6 +2234,56 @@
     </div>
     <div id="appModalBody" class="app-modal-body">
       <div class="application-detail-empty">LOADING…</div>
+    </div>
+  </div>
+</div>
+
+<!-- Bank transfer (ACH / wire / SWIFT) details modal (payments tab) -->
+<div id="bankTransferModal" class="app-modal" hidden>
+  <div class="app-modal-backdrop" onclick="closeBankTransferModal()"></div>
+  <div class="app-modal-content" role="dialog" aria-modal="true" aria-labelledby="bankTransferModalTitle">
+    <div class="app-modal-header">
+      <div>
+        <h2 id="bankTransferModalTitle">PAY BY BANK TRANSFER</h2>
+        <span class="app-modal-subject">ACH, wire &amp; SWIFT</span>
+      </div>
+      <button class="app-modal-close" type="button" onclick="closeBankTransferModal()" aria-label="Close">&times;</button>
+    </div>
+    <div class="app-modal-body">
+      <p class="bank-intro">
+        Here are the USD account details for <strong>PACIFIC DISCOVERY LIMITED</strong> on Wise.
+        If you're sending money from a bank in the US, you can use these details to make a domestic
+        transfer. If you're sending from somewhere else, make an international SWIFT transfer.
+      </p>
+      <dl class="bank-details">
+        <div class="bank-detail-row">
+          <dt>Name</dt>
+          <dd>PACIFIC DISCOVERY LIMITED</dd>
+        </div>
+        <div class="bank-detail-row">
+          <dt>Account type</dt>
+          <dd>Checking</dd>
+        </div>
+        <div class="bank-detail-row">
+          <dt>Routing number (wire &amp; ACH)</dt>
+          <dd>101019628 <span class="bank-detail-hint">Use when sending from the US</span></dd>
+        </div>
+        <div class="bank-detail-row">
+          <dt>Account number</dt>
+          <dd>216617201640</dd>
+        </div>
+        <div class="bank-detail-row">
+          <dt>SWIFT / BIC</dt>
+          <dd>TRWIUS35XXX <span class="bank-detail-hint">Use when sending from outside the US</span></dd>
+        </div>
+        <div class="bank-detail-row">
+          <dt>Bank name &amp; address</dt>
+          <dd>Wise US Inc, 108 W 13th St, Wilmington, DE, 19801, United States</dd>
+        </div>
+      </dl>
+      <p class="bank-note">
+        Please include your name and program in the transfer reference so we can match your payment.
+      </p>
     </div>
   </div>
 </div>
@@ -3581,6 +3712,20 @@
       </div>
     `;
 
+    // ---- Bank transfer (ACH / wire / SWIFT) callout ----
+    // Opens a modal with Wise USD account details. No processing fee applies
+    // to bank transfers, so we highlight that as the incentive to use it.
+    const bankTransferHtml = `
+      <div class="payment-bank-callout">
+        <div class="payment-bank-callout-text">
+          <div class="payment-bank-callout-title">Prefer to pay by bank transfer?</div>
+          <div class="payment-bank-callout-sub">Pay via ACH or wire transfer with no processing fee.</div>
+        </div>
+        <button type="button" class="payment-action-btn payment-action-btn--secondary"
+          onclick="openBankTransferModal()">VIEW BANK DETAILS</button>
+      </div>
+    `;
+
     // ---- Payment history table ----
     let historyHtml = "";
     if (payments.length > 0) {
@@ -3629,6 +3774,7 @@
       ${summaryHtml}
       ${actionsHtml}
       ${customAmountHtml}
+      ${bankTransferHtml}
       ${historyHtml}
     `;
   }
@@ -4616,6 +4762,27 @@
     if (e.key === "Escape") {
       const modal = document.getElementById("appModal");
       if (modal && !modal.hidden) closeApplicationModal();
+    }
+  });
+
+  // ----- Payments tab: bank-transfer (ACH / wire / SWIFT) details modal -----
+  function openBankTransferModal() {
+    const modal = document.getElementById("bankTransferModal");
+    if (modal) modal.hidden = false;
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeBankTransferModal() {
+    const modal = document.getElementById("bankTransferModal");
+    if (modal) modal.hidden = true;
+    document.body.style.overflow = "";
+  }
+
+  // ESC closes the bank-transfer modal
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      const modal = document.getElementById("bankTransferModal");
+      if (modal && !modal.hidden) closeBankTransferModal();
     }
   });
 
