@@ -227,6 +227,9 @@ export async function handler(event) {
       // recording). The live link auto-hides in the UI once the date passes.
       "information_session", "information_sessions_meeting_link", "information_session_recording",
       "predeparture_webinar_date", "predeparture_webinar_link", "predeparture_webinar_recording",
+      // WhatsApp group invite link — shown as a button on the Quick Links
+      // overview card when populated.
+      "whatsapp_group_link",
       // Visas, Flights & Insurance tab — three rich-text content fields.
       "visa_information", "flight_information", "insurance_information",
       // Manuals tab — rich-text "Resources" block below the 3 URL cards.
