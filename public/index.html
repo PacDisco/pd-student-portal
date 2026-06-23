@@ -850,6 +850,11 @@
       opacity: 0.55;
       cursor: wait;
     }
+    /* WhatsApp Group button — only rendered when whatsapp_group_link is set. */
+    .quick-links-card .event-link--whatsapp {
+      background: #25D366;
+    }
+    .quick-links-card .event-link--whatsapp:hover { opacity: 0.85; }
 
     /* Generic "Read more" clamp + toggle.
        Any element with .readmore-content gets clipped to ~5 lines until
@@ -3430,7 +3435,7 @@
     const events = [
       // "Quick Links" — itinerary URL + Edit Application button (lazy-fetches
       // the user's Jotform submission id on click) + Gear List URL.
-      { title: "QUICK LINKS", isQuickLinks: true, itineraryUrl: p.program_itinerary, gearListUrl: p.gear_list },
+      { title: "QUICK LINKS", isQuickLinks: true, itineraryUrl: p.program_itinerary, gearListUrl: p.gear_list, whatsappUrl: p.whatsapp_group_link },
       // Information Sessions — date + (pre-event) live meeting link + recording.
       // The meeting link hides automatically once the date has passed.
       {
@@ -3467,6 +3472,16 @@
         const gearListHtml = e.gearListUrl
           ? `<a href="${e.gearListUrl}" target="_blank" class="event-link">VIEW GEAR LIST</a>`
           : `<span class="tbc">TBC</span>`;
+        // WhatsApp Group row — only rendered when the program record has a
+        // whatsapp_group_link value. Unlike the rows above, this one is
+        // hidden entirely (no TBC stub) when the field is blank.
+        const whatsappUrl = e.whatsappUrl ? String(e.whatsappUrl).trim() : "";
+        const whatsappHtml = whatsappUrl
+          ? `<div class="quick-link-row">
+              <div class="quick-link-row-label">WHATSAPP GROUP</div>
+              <a href="${whatsappUrl}" target="_blank" rel="noopener" class="event-link event-link--whatsapp">JOIN WHATSAPP GROUP</a>
+            </div>`
+          : "";
         return `
           <div class="expedition-card itinerary-card quick-links-card">
             <h4>${e.title}</h4>
@@ -3482,6 +3497,7 @@
               <div class="quick-link-row-label">GEAR LIST</div>
               ${gearListHtml}
             </div>
+            ${whatsappHtml}
           </div>`;
       }
       if (e.isMeetingCard) {
