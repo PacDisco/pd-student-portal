@@ -405,7 +405,9 @@ async function fetchPortalCards(portalIds, OBJECT, headers) {
       if (!v) return null;
       const d = new Date(v);
       if (isNaN(d.getTime())) return null;
-      return d.toLocaleDateString("en-NZ", { year: "numeric", month: "short", day: "numeric" });
+      // Format in UTC so the calendar date entered in HubSpot is shown
+      // as-is, not shifted by the server's / viewer's timezone.
+      return d.toLocaleDateString("en-NZ", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
     };
     const s = fmt(start);
     const e = fmt(end);
