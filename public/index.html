@@ -3310,7 +3310,10 @@
           if (!v) return null;
           const d = new Date(v);
           if (isNaN(d.getTime())) return null;
-          return d.toLocaleDateString("en-NZ", { year: "numeric", month: "short", day: "numeric" });
+          // Program dates are calendar dates (HubSpot stores them as
+          // midnight UTC). Format in UTC so we show the exact date that
+          // was entered, not shifted into the viewer's local timezone.
+          return d.toLocaleDateString("en-NZ", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
         };
         const start = fmtDate(portalData.program_start_date);
         const end   = fmtDate(portalData.program_end_date);
