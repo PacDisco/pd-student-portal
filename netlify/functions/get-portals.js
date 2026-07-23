@@ -120,7 +120,9 @@ export async function handler(event) {
           if (!v) return null;
           const d = new Date(v);
           if (isNaN(d.getTime())) return null;
-          return d.toLocaleDateString("en-NZ", { year: "numeric", month: "short", day: "numeric" });
+          // Format in UTC so the calendar date entered in HubSpot is shown
+          // as-is, not shifted by the server's / viewer's timezone.
+          return d.toLocaleDateString("en-NZ", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
         };
         const startStr = fmt(props.program_start_date);
         const endStr   = fmt(props.program_end_date);
