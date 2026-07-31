@@ -3565,13 +3565,38 @@
         </div>`;
     }
 
+    // Student Fact Find For Flights — Typeform embed rendered at the top of
+    // the tab, above the visa/flight/insurance rich-text sections. The embed
+    // <script> can't run from innerHTML, so ensureTypeformScript() loads
+    // embed.js after this markup is injected (see destination_overview_content).
+    const factFind = `
+      <div class="info-section">
+        <div class="info-section-label">STUDENT FACT FIND FOR FLIGHTS</div>
+        <div class="info-section-body">
+          <div data-tf-live="01KYV067225FZ2180Z98331G19" style="width:100%;height:500px;"></div>
+        </div>
+      </div>`;
+
     return `
       <div class="info-sections">
+        ${factFind}
         ${section("VISA INFORMATION",      p.visa_information)}
         ${section("FLIGHT INFORMATION",    p.flight_information)}
         ${section("INSURANCE INFORMATION", p.insurance_information)}
       </div>
     `;
+  }
+
+  // Load the Typeform embed script once. embed.js watches the DOM for
+  // [data-tf-live] elements, so loading it a single time is enough — it will
+  // hydrate any embeds added later via innerHTML.
+  function ensureTypeformScript() {
+    if (document.getElementById("typeform-embed-script")) return;
+    const s = document.createElement("script");
+    s.id = "typeform-embed-script";
+    s.src = "//embed.typeform.com/next/embed.js";
+    s.async = true;
+    document.body.appendChild(s);
   }
 
   async function loadInsurance() {
@@ -3873,6 +3898,7 @@
         // styled by the `.info-section-body a` CSS rule.
         content.innerHTML = loadFlightsAndInsurance();
         content.style.opacity = 1;
+        ensureTypeformScript();
         applyReadMoreClamping(content);
         return;
       }
