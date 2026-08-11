@@ -64,13 +64,32 @@ import nodemailer from "nodemailer";
 const PORTAL_OBJECT_ID = "2-58411705";
 
 // Portal properties we'll try, in order, when the webhook body doesn't
-// carry the message text itself. First non-empty one wins.
+// carry the message text itself. First non-empty one wins. `message_board`
+// is the field the portal front-end actually reads (public/index.html), so
+// it leads the list; the rest are fallbacks for older/renamed setups.
 const MESSAGE_PROP_CANDIDATES = [
+  "message_board",
   "message_board_message",
   "message_board_latest",
   "message_board_body",
   "latest_message_board_post",
   "message_board_text",
+];
+
+// The program name lives on the associated "Pacific Discovery Programs"
+// custom object, not on the Portal record. We follow the association from
+// the Portal to that object and read its name.
+//   PROGRAM_OBJECT_TYPE   — object type of the programs object. Either the
+//                           numeric id ("2-XXXXXXX") or the fully-qualified
+//                           name ("p<hubid>_pacific_discovery_programs").
+//   PROGRAM_NAME_PROPERTY — property on that object holding the program name.
+// Both are env-overridable; the candidates below are tried if the env var
+// isn't set (or as fallbacks after it).
+const PROGRAM_NAME_PROP_CANDIDATES = [
+  "program_name",
+  "name",
+  "title",
+  "program_title",
 ];
 
 // Reuse the SMTP transport across warm invocations (mirrors send-magic-link).
@@ -135,15 +154,27 @@ export async function handler(event) {
       return jsonResponse(400, { error: "Missing portalId / objectId / hs_object_id in webhook body" });
     }
 
-    // Message text (optional) straight from the webhook body.
-    let messageText = String(
+    // Message text (optional) straight from the webhook body. This is a
+    // rich-text field, so it may contain HTML (<p>…</p>, <a>, <br>, etc.).
+    let messageHtml = String(
       body.message ||
       body.messageBody ||
+      body.message_board ||
       body.message_board_message ||
+      body?.properties?.message_board ||
       body?.properties?.message_board_message ||
       ""
     ).trim();
     const author = String(body.author || body.posted_by || "").trim();
+
+    // Program name (optional) straight from the webhook body — lets the
+    // caller map the associated program's name in directly if they prefer.
+    let programName = String(
+      body.program ||
+      body.programName ||
+      body.program_name ||
+      ""
+    ).trim();
 
     const headers = {
       Authorization: `Bearer ${process.env.HUBSPOT_API_KEY}`,
@@ -158,8 +189,8 @@ export async function handler(event) {
         .filter(Boolean)
     );
 
-    // Look up the trip title (and the message text, if not in the body).
-    let tripTitle = "your expedition";
+    // Read the Portal record: the rich-text message board field (if it
+    // wasn't passed in the body) plus a couple of on-record title fallbacks.
     try {
       const propList = [
         "program_name",
@@ -175,12 +206,17 @@ export async function handler(event) {
       if (portalRes.ok) {
         const portal = await portalRes.json();
         const p = portal.properties || {};
-        tripTitle = p.program_name || p.portal_title || p.destination || tripTitle;
-        if (!messageText) {
+        // If the program name wasn't in the webhook body, we'll pull it
+        // from the associated Pacific Discovery Programs object below. An
+        // on-record program_name/portal_title is only a last-ditch fallback.
+        if (!programName) {
+          programName = p.program_name || p.portal_title || p.destination || "";
+        }
+        if (!messageHtml) {
           const key = process.env.MESSAGE_BOARD_PROPERTY;
           const candidates = key ? [key, ...MESSAGE_PROP_CANDIDATES] : MESSAGE_PROP_CANDIDATES;
           for (const c of candidates) {
-            if (p[c] && String(p[c]).trim()) { messageText = String(p[c]).trim(); break; }
+            if (p[c] && String(p[c]).trim()) { messageHtml = String(p[c]).trim(); break; }
           }
         }
       } else {
@@ -190,6 +226,48 @@ export async function handler(event) {
     } catch (e) {
       console.warn("[send-message-board-email] portal read failed (non-fatal):", e?.message || e);
     }
+
+    // Follow the association from the Portal to the "Pacific Discovery
+    // Programs" object and read its name — this is where the real program
+    // name lives. Skipped if we already have a name from the webhook body,
+    // or if PROGRAM_OBJECT_TYPE isn't configured.
+    const programObjectType = process.env.PROGRAM_OBJECT_TYPE;
+    if (!programName && programObjectType) {
+      try {
+        const progAssocRes = await fetch(
+          `https://api.hubapi.com/crm/v4/objects/${PORTAL_OBJECT_ID}/${encodeURIComponent(portalId)}/associations/${encodeURIComponent(programObjectType)}?limit=1`,
+          { headers }
+        );
+        if (progAssocRes.ok) {
+          const progAssoc = await progAssocRes.json();
+          const programId = progAssoc.results?.[0]?.toObjectId;
+          if (programId) {
+            const nameProps = [process.env.PROGRAM_NAME_PROPERTY, ...PROGRAM_NAME_PROP_CANDIDATES].filter(Boolean);
+            const progRes = await fetch(
+              `https://api.hubapi.com/crm/v3/objects/${encodeURIComponent(programObjectType)}/${encodeURIComponent(programId)}?properties=${encodeURIComponent(nameProps.join(","))}`,
+              { headers }
+            );
+            if (progRes.ok) {
+              const prog = await progRes.json();
+              const pp = prog.properties || {};
+              for (const np of nameProps) {
+                if (pp[np] && String(pp[np]).trim()) { programName = String(pp[np]).trim(); break; }
+              }
+            } else {
+              const text = await progRes.text().catch(() => "");
+              console.warn(`[send-message-board-email] program read ${progRes.status}: ${text.slice(0, 200)}`);
+            }
+          }
+        } else {
+          const text = await progAssocRes.text().catch(() => "");
+          console.warn(`[send-message-board-email] program assoc ${progAssocRes.status}: ${text.slice(0, 200)}`);
+        }
+      } catch (e) {
+        console.warn("[send-message-board-email] program lookup failed (non-fatal):", e?.message || e);
+      }
+    }
+
+    const tripTitle = programName || "your expedition";
 
     // 1. List every contact associated to this portal, keeping the
     //    association labels so we can filter by role.
@@ -270,8 +348,8 @@ export async function handler(event) {
           from: `"${fromName}" <${process.env.SMTP_USER}>`,
           to: r.email,
           subject,
-          text: buildPlainText({ firstName: r.firstName, tripTitle, messageText, author, link }),
-          html: buildHtml({ firstName: r.firstName, tripTitle, messageText, author, link }),
+          text: buildPlainText({ firstName: r.firstName, tripTitle, messageHtml, author, link }),
+          html: buildHtml({ firstName: r.firstName, tripTitle, messageHtml, author, link }),
         })
       )
     );
@@ -309,16 +387,17 @@ function jsonResponse(statusCode, payload) {
 
 // ---------- email body builders ----------
 
-function buildPlainText({ firstName, tripTitle, messageText, author, link }) {
+function buildPlainText({ firstName, tripTitle, messageHtml, author, link }) {
   const lines = [
     `Hi ${firstName},`,
     ``,
     `There's a new post on the ${tripTitle} Message Board.`,
     ``,
   ];
-  if (messageText) {
+  const plain = htmlToText(messageHtml);
+  if (plain) {
     if (author) lines.push(`${author} wrote:`);
-    lines.push(messageText, ``);
+    lines.push(plain, ``);
   } else {
     lines.push(`Log in to the portal to read it.`, ``);
   }
@@ -326,16 +405,23 @@ function buildPlainText({ firstName, tripTitle, messageText, author, link }) {
   return lines.join("\n");
 }
 
-function buildHtml({ firstName, tripTitle, messageText, author, link }) {
+function buildHtml({ firstName, tripTitle, messageHtml, author, link }) {
   // Inline styles only — renders consistently across Gmail, Apple Mail,
   // Outlook web, and mobile clients. Mirrors send-magic-link's layout.
   const safeName  = escapeHtml(firstName);
   const safeTrip  = escapeHtml(tripTitle);
   const safeLink  = escapeHtml(link);
   const safeAuthor = author ? escapeHtml(author) : "";
-  // Preserve line breaks in the message body; escape everything else.
-  const safeMsg = messageText
-    ? escapeHtml(messageText).replace(/\r?\n/g, "<br>")
+  // The message board is a RICH-TEXT field — its value is already HTML
+  // (<p>…</p>, <a>, <br>, etc.), so we render it as-is rather than escaping
+  // it. sanitizeRichText() strips anything unsafe (scripts, event handlers,
+  // etc.) but keeps the formatting. If the value happens to be plain text
+  // (no tags), we escape it and convert newlines so it still looks right.
+  const looksLikeHtml = /<[a-z!/][\s\S]*>/i.test(messageHtml || "");
+  const safeMsg = messageHtml
+    ? (looksLikeHtml
+        ? sanitizeRichText(messageHtml)
+        : escapeHtml(messageHtml).replace(/\r?\n/g, "<br>"))
     : "";
 
   const messageBlock = safeMsg
@@ -389,4 +475,49 @@ function escapeHtml(s) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+// Light sanitizer for the rich-text message body. HubSpot rich-text is
+// trusted-ish (staff-authored), but we still strip the things that have no
+// business in an email and could be dangerous or break rendering:
+//   - <script>/<style>/<iframe>/<object>/<embed> blocks (content and all)
+//   - on* event-handler attributes
+//   - javascript: URLs
+// Everything else (p, br, a, strong, em, ul/li, headings, etc.) passes
+// through so the formatting the author intended is preserved.
+function sanitizeRichText(html) {
+  let out = String(html);
+  // Drop dangerous element blocks entirely, including their inner content.
+  out = out.replace(/<(script|style|iframe|object|embed)\b[\s\S]*?<\/\1>/gi, "");
+  // Drop any stray self-closing / unclosed versions of those tags.
+  out = out.replace(/<\/?(script|style|iframe|object|embed)\b[^>]*>/gi, "");
+  // Strip inline event handlers: on*="..."  on*='...'  on*=value
+  out = out.replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, "");
+  out = out.replace(/\son[a-z]+\s*=\s*'[^']*'/gi, "");
+  out = out.replace(/\son[a-z]+\s*=\s*[^\s">]+/gi, "");
+  // Neutralize javascript: URLs in href/src.
+  out = out.replace(/(href|src)\s*=\s*("|')\s*javascript:[^"']*\2/gi, '$1="#"');
+  return out;
+}
+
+// Convert rich-text HTML to a readable plain-text fallback for the text/
+// part of the email. Block tags become line breaks; entities are decoded;
+// tags are stripped. Good enough for a notification email — not a full
+// HTML-to-text engine.
+function htmlToText(html) {
+  if (!html) return "";
+  let t = String(html);
+  t = t.replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, "");
+  t = t.replace(/<\s*br\s*\/?>/gi, "\n");
+  t = t.replace(/<\/\s*(p|div|li|h[1-6]|tr)\s*>/gi, "\n");
+  t = t.replace(/<\s*li[^>]*>/gi, "• ");
+  t = t.replace(/<[^>]+>/g, "");            // strip remaining tags
+  t = t.replace(/&nbsp;/gi, " ")
+       .replace(/&amp;/gi, "&")
+       .replace(/&lt;/gi, "<")
+       .replace(/&gt;/gi, ">")
+       .replace(/&quot;/gi, '"')
+       .replace(/&#39;/gi, "'");
+  t = t.replace(/\n{3,}/g, "\n\n").replace(/[ \t]+\n/g, "\n"); // tidy whitespace
+  return t.trim();
 }
