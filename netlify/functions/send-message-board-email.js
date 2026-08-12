@@ -94,6 +94,32 @@ function getTransporter() {
   return cachedTransporter;
 }
 
+// Cache of the Portal object's existing property names, so we only ask
+// HubSpot for fields that actually exist (a GET with a non-existent
+// property 400s the whole request). Fetched once per warm instance.
+let cachedPortalPropSet = null;
+async function getExistingPortalProps(headers) {
+  if (cachedPortalPropSet) return cachedPortalPropSet;
+  try {
+    const res = await fetch(
+      `https://api.hubapi.com/crm/v3/properties/${PORTAL_OBJECT_ID}`,
+      { headers }
+    );
+    if (!res.ok) {
+      console.warn(`[send-message-board-email] property schema ${res.status}`);
+      return null; // caller falls back to a minimal known-safe list
+    }
+    const schema = await res.json();
+    cachedPortalPropSet = new Set(
+      (schema.results || []).map(p => p && p.name).filter(Boolean)
+    );
+    return cachedPortalPropSet;
+  } catch (e) {
+    console.warn("[send-message-board-email] property schema fetch failed:", e?.message || e);
+    return null;
+  }
+}
+
 export async function handler(event) {
   try {
     // HubSpot verification handshake.
@@ -179,21 +205,31 @@ export async function handler(event) {
     // message board field, if it wasn't passed in the body).
     //
     // IMPORTANT: HubSpot's v3 GET returns 400 for the WHOLE request if you
-    // ask for a property that doesn't exist on the object. So we request
-    // ONLY properties we know are real — the exact set portal.js /
-    // send-message-board-push.js use — never speculative names. `message_board`
-    // is the real rich-text field (see portal.js). MESSAGE_BOARD_PROPERTY /
-    // PROGRAM_NAME_PROPERTY are only added if you set them, and you'd only
-    // set them to real property names.
+    // ask for even ONE property that doesn't exist on the object. Different
+    // Pacific Discovery objects have different legacy fields (some have
+    // `portal_title`/`destination`, some only the newer `program_*` fields),
+    // so we can't hard-code a safe list. Instead — exactly like portal.js —
+    // we read the object's property schema first and request only the fields
+    // that actually exist. The schema is cached across warm invocations.
     try {
-      const propList = [
+      const wanted = [
+        process.env.PROGRAM_NAME_PROPERTY,
         "program_name",
         "portal_title",
         "destination",
-        "message_board",
         process.env.MESSAGE_BOARD_PROPERTY,
-        process.env.PROGRAM_NAME_PROPERTY,
+        "message_board",
       ].filter(Boolean);
+      const existing = await getExistingPortalProps(headers);
+      // If the schema lookup failed we fall back to just program_name +
+      // message_board (both confirmed real in this codebase) rather than
+      // risk a 400 from the legacy fields.
+      const propList = existing
+        ? wanted.filter(n => existing.has(n))
+        : wanted.filter(n => n === "program_name" || n === "message_board"
+            || n === process.env.PROGRAM_NAME_PROPERTY || n === process.env.MESSAGE_BOARD_PROPERTY);
+      if (propList.length === 0) propList.push("program_name");
+
       const portalRes = await fetch(
         `https://api.hubapi.com/crm/v3/objects/${PORTAL_OBJECT_ID}/${encodeURIComponent(portalId)}?properties=${encodeURIComponent(propList.join(","))}`,
         { headers }
