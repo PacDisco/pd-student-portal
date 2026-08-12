@@ -24,11 +24,10 @@
 //   }
 //
 // If the message text is NOT in the webhook body, we fall back to reading
-// it off the Portal record itself. Set MESSAGE_BOARD_PROPERTY to the
-// internal name of the property that holds the latest post; otherwise we
-// try a few common names (see MESSAGE_PROP_CANDIDATES below). If we still
-// can't find any text, we send a generic "there's a new update, log in to
-// read it" email so the notification still goes out.
+// the `message_board` rich-text field off the Portal record itself (set
+// MESSAGE_BOARD_PROPERTY to override that property name). If we still can't
+// find any text, we send a generic "there's a new update, log in to read
+// it" email so the notification still goes out.
 //
 // HubSpot sends a verification GET when you first save the webhook action;
 // we 200-OK any GET so that handshake succeeds.
@@ -62,19 +61,6 @@
 import nodemailer from "nodemailer";
 
 const PORTAL_OBJECT_ID = "2-58411705";
-
-// Portal properties we'll try, in order, when the webhook body doesn't
-// carry the message text itself. First non-empty one wins. `message_board`
-// is the field the portal front-end actually reads (public/index.html), so
-// it leads the list; the rest are fallbacks for older/renamed setups.
-const MESSAGE_PROP_CANDIDATES = [
-  "message_board",
-  "message_board_message",
-  "message_board_latest",
-  "message_board_body",
-  "latest_message_board_post",
-  "message_board_text",
-];
 
 // The program name lives on the associated "Pacific Discovery Programs"
 // custom object, not on the Portal record. We follow the association from
@@ -189,15 +175,24 @@ export async function handler(event) {
         .filter(Boolean)
     );
 
-    // Read the Portal record: the rich-text message board field (if it
-    // wasn't passed in the body) plus a couple of on-record title fallbacks.
+    // Read the Portal record for the program name (and the rich-text
+    // message board field, if it wasn't passed in the body).
+    //
+    // IMPORTANT: HubSpot's v3 GET returns 400 for the WHOLE request if you
+    // ask for a property that doesn't exist on the object. So we request
+    // ONLY properties we know are real — the exact set portal.js /
+    // send-message-board-push.js use — never speculative names. `message_board`
+    // is the real rich-text field (see portal.js). MESSAGE_BOARD_PROPERTY /
+    // PROGRAM_NAME_PROPERTY are only added if you set them, and you'd only
+    // set them to real property names.
     try {
       const propList = [
         "program_name",
         "portal_title",
         "destination",
+        "message_board",
         process.env.MESSAGE_BOARD_PROPERTY,
-        ...MESSAGE_PROP_CANDIDATES,
+        process.env.PROGRAM_NAME_PROPERTY,
       ].filter(Boolean);
       const portalRes = await fetch(
         `https://api.hubapi.com/crm/v3/objects/${PORTAL_OBJECT_ID}/${encodeURIComponent(portalId)}?properties=${encodeURIComponent(propList.join(","))}`,
@@ -206,18 +201,20 @@ export async function handler(event) {
       if (portalRes.ok) {
         const portal = await portalRes.json();
         const p = portal.properties || {};
-        // If the program name wasn't in the webhook body, we'll pull it
-        // from the associated Pacific Discovery Programs object below. An
-        // on-record program_name/portal_title is only a last-ditch fallback.
         if (!programName) {
-          programName = p.program_name || p.portal_title || p.destination || "";
+          const nameKey = process.env.PROGRAM_NAME_PROPERTY;
+          programName =
+            (nameKey && p[nameKey]) ||
+            p.program_name ||
+            p.portal_title ||
+            p.destination ||
+            "";
         }
         if (!messageHtml) {
-          const key = process.env.MESSAGE_BOARD_PROPERTY;
-          const candidates = key ? [key, ...MESSAGE_PROP_CANDIDATES] : MESSAGE_PROP_CANDIDATES;
-          for (const c of candidates) {
-            if (p[c] && String(p[c]).trim()) { messageHtml = String(p[c]).trim(); break; }
-          }
+          const msgKey = process.env.MESSAGE_BOARD_PROPERTY;
+          messageHtml = String(
+            (msgKey && p[msgKey]) || p.message_board || ""
+          ).trim();
         }
       } else {
         const text = await portalRes.text().catch(() => "");
