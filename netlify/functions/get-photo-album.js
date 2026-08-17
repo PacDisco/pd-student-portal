@@ -219,6 +219,26 @@ export function describeAlbumHtml(html, finalUrl) {
   };
 }
 
+/**
+ * Find the real album URL inside a redirect interstitial.
+ *
+ * photos.app.goo.gl links are Firebase Dynamic Links: they answer 200 with an
+ * HTML page whose JavaScript navigates the browser onwards, rather than an
+ * HTTP 3xx. `redirect: "follow"` therefore has nothing to follow, and a naive
+ * fetch parses the interstitial — which contains script blobs and no photos.
+ * The destination is in that page, but escaped various ways depending on
+ * whether it sits in markup or inside a JS string, so unescape first.
+ */
+export function findShareUrl(html) {
+  const s = String(html || "")
+    .replace(/\\u002[fF]/g, "/")
+    .replace(/\\\//g, "/")
+    .replace(/\\u003[dD]/g, "=")
+    .replace(/\\u0026|&amp;/g, "&");
+  const m = /https:\/\/photos\.google\.com\/share\/[A-Za-z0-9_-]+(?:\?key=[A-Za-z0-9_-]+)?/.exec(s);
+  return m ? m[0] : null;
+}
+
 /** Album title from the page's og:title, if present. */
 export function extractTitle(html) {
   const m =
@@ -231,11 +251,8 @@ export function extractTitle(html) {
   return t;
 }
 
-async function loadAlbum(albumUrl) {
-  const cached = _albumCache.get(albumUrl);
-  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) return cached.value;
-
-  const res = await fetch(albumUrl, {
+async function fetchPage(url) {
+  const res = await fetch(url, {
     redirect: "follow",
     headers: {
       "User-Agent": UA,
@@ -254,14 +271,39 @@ async function loadAlbum(albumUrl) {
     e.upstream = res.status;
     throw e;
   }
-  const html = await res.text();
+  return { html: await res.text(), finalUrl: res.url };
+}
 
-  const photos = extractPhotos(html);
+async function loadAlbum(albumUrl) {
+  const cached = _albumCache.get(albumUrl);
+  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) return cached.value;
+
+  let { html, finalUrl } = await fetchPage(albumUrl);
+  let photos = extractPhotos(html);
+  let resolvedUrl = null;
+
+  // Short links (photos.app.goo.gl) answer with a JS redirect interstitial,
+  // not an HTTP 3xx — so the fetch above lands on a page with no photos in
+  // it. Dig the real album URL out of that page and follow it ourselves.
+  // One extra hop only: the destination is always a long share URL, and a
+  // second interstitial would mean something has changed enough that we
+  // should fail visibly rather than loop.
+  if (!photos.length) {
+    const target = findShareUrl(html);
+    if (target && target !== albumUrl && target !== finalUrl) {
+      resolvedUrl = target;
+      ({ html, finalUrl } = await fetchPage(target));
+      photos = extractPhotos(html);
+    }
+  }
+
   const value = {
     photos,
     title: extractTitle(html),
     // Only computed when there's something to explain.
-    diagnostic: photos.length ? null : describeAlbumHtml(html, res.url),
+    diagnostic: photos.length
+      ? null
+      : { ...describeAlbumHtml(html, finalUrl), resolved_share_url: resolvedUrl },
   };
   _albumCache.set(albumUrl, { ts: Date.now(), value });
   return value;
@@ -468,6 +510,23 @@ export async function handler(event) {
       });
     }
 
+    // Whether the share link is allowed to reach the browser at all.
+    //
+    // When we successfully extracted the photos, the portal renders them
+    // itself and has no use for the link — so we withhold it. That keeps the
+    // album URL out of the page source entirely: families see the photos and
+    // have nothing to click through to, and nothing to forward.
+    //
+    // It still has to be sent when there are no photos to show, because the
+    // page then falls back to the publicalbum widget (which needs data-link)
+    // or to a "view the album" card, and a dead end is worse than a link.
+    // Staff always get it, and EXPOSE_ALBUM_LINK=1 restores the old
+    // everyone-gets-a-button behaviour if you change your mind.
+    const linkAllowed =
+      album.photos.length === 0 ||
+      !!identity.role ||
+      String(process.env.EXPOSE_ALBUM_LINK || "") === "1";
+
     // Staff-only. Explains a zero-photo album without needing a redeploy:
     // whether Google served us a real page, whether any media URLs were in
     // it, and what shape they're in. Never sent to families.
@@ -477,7 +536,7 @@ export async function handler(event) {
       : undefined;
 
     return json(200, {
-      album_url: albumUrl,
+      album_url: linkAllowed ? albumUrl : undefined,
       title: album.title,
       count: album.photos.length,
       photos: album.photos,
