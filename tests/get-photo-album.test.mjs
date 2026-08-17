@@ -11,6 +11,7 @@
 
 import assert from "node:assert/strict";
 import {
+  describeAlbumHtml,
   extractPhotos,
   extractTitle,
   isGooglePhotosLink,
@@ -195,6 +196,75 @@ test("falls back to non-/pw/ media when no /pw/ items exist", () => {
 test("ignores lookalike urls on other hosts", () => {
   const evil = `["https://evil.test/lh3.googleusercontent.com/pw/AAA",1600,1200]`;
   assert.equal(extractPhotos(evil).length, 0);
+});
+
+// --- Pass 2: the loose fallback, for when Google reshapes the data blob ---
+console.log("\nextractPhotos — loose fallback");
+
+// Same media, but no adjacent width/height pair for pass 1 to latch onto.
+const RESHAPED = `
+<script>AF_initDataCallback({key:'ds:1',data:[
+ ["AF1QipOne",{"u":"https://lh3.googleusercontent.com/pw/AP1GczAAAAAAAAAAAAAA_one","m":{}}],
+ ["AF1QipTwo",{"u":"https://lh3.googleusercontent.com/pw/AP1GczBBBBBBBBBBBBBB_two","m":{}}]
+]});</script>`;
+
+test("falls back to a bare url scan when the positional match finds nothing", () => {
+  const p = extractPhotos(RESHAPED);
+  assert.equal(p.length, 2);
+  assert.equal(p[0].url, "https://lh3.googleusercontent.com/pw/AP1GczAAAAAAAAAAAAAA_one");
+});
+
+test("fallback returns null dimensions rather than guessing", () => {
+  const [first] = extractPhotos(RESHAPED);
+  assert.equal(first.width, null);
+  assert.equal(first.height, null);
+});
+
+test("fallback strips size suffixes and de-duplicates", () => {
+  const html = `
+    <meta property="og:image" content="https://lh3.googleusercontent.com/pw/AP1GczCCCCCCCCCCCCCC_cover=w468-h288-p-k">
+    <div data-src="https://lh3.googleusercontent.com/pw/AP1GczCCCCCCCCCCCCCC_cover=w1000"></div>`;
+  const p = extractPhotos(html);
+  assert.equal(p.length, 1, "the same photo at two sizes is one photo");
+  assert.equal(p[0].url, "https://lh3.googleusercontent.com/pw/AP1GczCCCCCCCCCCCCCC_cover");
+});
+
+test("fallback still excludes avatars", () => {
+  const html = `https://lh3.googleusercontent.com/a/ACg8ocAvatarAvatarAvatar`;
+  assert.equal(extractPhotos(html).length, 0);
+});
+
+test("the precise pass still wins when it matches", () => {
+  const p = extractPhotos(SAMPLE);
+  assert.equal(p[0].width, 4032, "dimensions should survive when pass 1 matched");
+});
+
+// ---------------------------------------------------------------------------
+// describeAlbumHtml — the staff-facing explanation of an empty album
+// ---------------------------------------------------------------------------
+console.log("\ndescribeAlbumHtml");
+
+test("counts the markers that distinguish failure modes", () => {
+  const d = describeAlbumHtml(SAMPLE);
+  assert.equal(d.af_init_blobs, 2);
+  assert.ok(d.lh3_urls >= 3);
+  assert.equal(d.pw_urls, 3);
+  assert.ok(d.html_bytes > 0);
+});
+
+test("reports a js-only shell as having no media at all", () => {
+  const shell = "<html><body>You need JavaScript.</body></html>";
+  const d = describeAlbumHtml(shell);
+  assert.equal(d.lh3_urls, 0);
+  assert.equal(d.pw_urls, 0);
+  assert.equal(d.first_pw_context, null);
+});
+
+test("includes a bounded context window around the first media url", () => {
+  const d = describeAlbumHtml(SAMPLE);
+  assert.ok(typeof d.first_pw_context === "string");
+  assert.ok(d.first_pw_context.length <= 320);
+  assert.ok(d.first_pw_context.includes("lh3.googleusercontent.com/pw/"));
 });
 
 // ---------------------------------------------------------------------------
