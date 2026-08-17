@@ -361,16 +361,29 @@ async function loadAlbum(albumUrl) {
   // A single photo that is exactly the og:image means we got the link-preview
   // cover and nothing else — i.e. extraction failed. Report it as empty so
   // the page falls back rather than showing one unrepresentative thumbnail.
+  //
+  // The one case where suppressing is wrong: an album that genuinely holds a
+  // single photo, which is therefore also its cover. Nothing in the HTML can
+  // tell those two apart. Set ALLOW_COVER_ONLY=1 to render it anyway — and
+  // see below for how to tell which situation you're actually in.
   const ogImage = extractOgImage(html);
-  if (isCoverOnly(photos, ogImage)) photos = [];
+  const allowCoverOnly = String(process.env.ALLOW_COVER_ONLY || "") === "1";
+  const coverOnly = isCoverOnly(photos, ogImage);
+  if (coverOnly && !allowCoverOnly) photos = [];
 
   const value = {
     photos,
     title: extractTitle(html),
+    coverOnly,
     // Only computed when there's something to explain.
     diagnostic: photos.length
       ? null
-      : { ...describeAlbumHtml(html, finalUrl), resolved_share_url: resolvedUrl },
+      : {
+          ...describeAlbumHtml(html, finalUrl),
+          resolved_share_url: resolvedUrl,
+          distinct_media_urls: new Set(extractPhotos(html).map(p => p.url)).size,
+          cover_only: coverOnly,
+        },
   };
   _albumCache.set(albumUrl, { ts: Date.now(), value });
   return value;
