@@ -312,10 +312,41 @@ export async function handler(event) {
 
     const rawAlbum = String(props[ALBUM_PROP] || "").trim();
     if (!rawAlbum) {
+      // An empty value is ambiguous: either nobody has pasted a link on this
+      // record yet (normal), or the property doesn't exist / is misnamed on
+      // this object (a setup bug). HubSpot silently ignores unknown property
+      // names in a GET's ?properties= list, so both look identical from the
+      // read above. Ask HubSpot which it is — this only runs on the empty
+      // path, so it costs nothing in the normal case.
+      let propertyExists = null;   // null = couldn't tell
+      try {
+        const defRes = await fetch(
+          `https://api.hubapi.com/crm/v3/properties/${OBJECT}/${ALBUM_PROP}`,
+          { headers: hsHeaders }
+        );
+        propertyExists = defRes.ok ? true : (defRes.status === 404 ? false : null);
+      } catch { /* leave as null */ }
+
+      if (propertyExists === false) {
+        return json(500, {
+          error: `The "${ALBUM_PROP}" property doesn't exist on object ${OBJECT}`,
+          code: "PROPERTY_MISSING",
+          hint: `Create a URL property with the internal name "${ALBUM_PROP}" on the Portal custom object (${OBJECT}). Note the internal name, not the label — HubSpot auto-generates it from the label and it often ends up different.`,
+          portal_id: portalId,
+          trip,
+        });
+      }
+
       return json(404, {
         error: "No photo album for this trip yet",
         code: "NO_ALBUM",
         hint: "Photos will appear here once the program team publishes the album.",
+        // Which record was actually read. Surfaced so staff can confirm they
+        // pasted the link on this Portal record and not a sibling one.
+        portal_id: portalId,
+        portal_url: `https://app.hubspot.com/contacts/objects/${OBJECT}/${portalId}`,
+        property_checked: ALBUM_PROP,
+        property_exists: propertyExists,
         trip,
       });
     }
