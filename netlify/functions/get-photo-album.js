@@ -129,40 +129,81 @@ export function isGooglePhotosLink(raw) {
  * Pull photo URLs out of a Google Photos shared-album page.
  *
  * The album page ships its data as AF_initDataCallback(...) JS blobs rather
- * than <img> tags. Inside those blobs each media item appears as
- *   ["https://lh3.googleusercontent.com/pw/<id>", <width>, <height>, ...]
- * so a positional match on url+width+height is both simple and specific —
- * it can't accidentally match avatars or UI sprites, which aren't followed
- * by a dimension pair.
+ * than <img> tags. Two passes, because the exact shape of those blobs is
+ * Google's private detail and does change:
+ *
+ *   Pass 1 (precise) — media items appear as
+ *     ["https://lh3.googleusercontent.com/pw/<id>", <width>, <height>, ...]
+ *   Matching url+width+height positionally can't misfire on avatars or UI
+ *   sprites, and gives us real dimensions.
+ *
+ *   Pass 2 (loose) — if pass 1 finds nothing, scan for bare /pw/ URLs and
+ *   de-duplicate. This survives Google reordering or reshaping the array,
+ *   which is the most likely way pass 1 breaks. Dimensions come back null;
+ *   nothing downstream needs them (the grid crops, the lightbox scales).
  *
  * Returns [{ url, width, height }], de-duplicated, in page order.
  */
 export function extractPhotos(html) {
   const out = [];
   const seen = new Set();
-  const re = /"(https:\/\/lh3\.googleusercontent\.com\/[^"\\\s]+)"\s*,\s*(\d{2,6})\s*,\s*(\d{2,6})/g;
 
-  let m;
-  while ((m = re.exec(html)) !== null) {
+  const push = (rawUrl, width, height) => {
     // Drop any size suffix Google already baked in (=w200-h200, =s64-c, ...)
     // so the client can request whatever dimensions it needs.
-    const url = m[1].split("=")[0];
-    const width = parseInt(m[2], 10);
-    const height = parseInt(m[3], 10);
-
-    // Profile pictures live under /a/ or /a-/ and are square and small.
-    // Real media from a shared album is served from /pw/.
-    if (/\/a[-/]/.test(new URL(url).pathname)) continue;
-    if (!width || !height || width < 160 || height < 160) continue;
-    if (seen.has(url)) continue;
-
+    const url = String(rawUrl).split("=")[0];
+    // Profile pictures live under /a/ or /a-/. Real shared-album media is /pw/.
+    let pathname;
+    try { pathname = new URL(url).pathname; } catch { return; }
+    if (/^\/a[-/]/.test(pathname)) return;
+    if (seen.has(url)) return;
     seen.add(url);
-    out.push({ url, width, height });
+    out.push({ url, width: width || null, height: height || null });
+  };
+
+  // ---- Pass 1: positional url + dimensions ----
+  const rePositional =
+    /"(https:\/\/lh3\.googleusercontent\.com\/[^"\\\s]+)"\s*,\s*(\d{2,6})\s*,\s*(\d{2,6})/g;
+  let m;
+  while ((m = rePositional.exec(html)) !== null) {
+    const w = parseInt(m[2], 10);
+    const h = parseInt(m[3], 10);
+    if (!w || !h || w < 160 || h < 160) continue;   // thumbnails / icons
+    push(m[1], w, h);
   }
 
-  // Prefer /pw/ items when we found any — that's the shared-album namespace.
-  const pw = out.filter(p => p.url.includes("/pw/"));
-  return pw.length ? pw : out;
+  if (out.length) {
+    // Prefer /pw/ items when we found any — that's the shared-album namespace.
+    const pw = out.filter(p => p.url.includes("/pw/"));
+    return pw.length ? pw : out;
+  }
+
+  // ---- Pass 2: bare /pw/ urls, any context ----
+  const reBare = /https:\/\/lh3\.googleusercontent\.com\/pw\/[A-Za-z0-9_-]{16,}/g;
+  while ((m = reBare.exec(html)) !== null) push(m[0], null, null);
+
+  return out;
+}
+
+/**
+ * What the album page actually contained. Only used to explain a zero-photo
+ * result to staff — a page that requires JavaScript and a page whose markup
+ * shape changed look identical from the outside, and these counts tell them
+ * apart without a redeploy.
+ */
+export function describeAlbumHtml(html) {
+  const s = String(html || "");
+  const count = (re) => (s.match(re) || []).length;
+  const firstPw = s.indexOf("lh3.googleusercontent.com/pw/");
+  return {
+    html_bytes: s.length,
+    af_init_blobs: count(/AF_initDataCallback/g),
+    lh3_urls: count(/lh3\.googleusercontent\.com/g),
+    pw_urls: count(/lh3\.googleusercontent\.com\/pw\//g),
+    // A short window around the first media URL: enough to see the shape
+    // Google is using now, not enough to be a data dump.
+    first_pw_context: firstPw === -1 ? null : s.slice(Math.max(0, firstPw - 120), firstPw + 200),
+  };
 }
 
 /** Album title from the page's og:title, if present. */
@@ -196,7 +237,13 @@ async function loadAlbum(albumUrl) {
   }
   const html = await res.text();
 
-  const value = { photos: extractPhotos(html), title: extractTitle(html) };
+  const photos = extractPhotos(html);
+  const value = {
+    photos,
+    title: extractTitle(html),
+    // Only computed when there's something to explain.
+    diagnostic: photos.length ? null : describeAlbumHtml(html),
+  };
   _albumCache.set(albumUrl, { ts: Date.now(), value });
   return value;
 }
@@ -384,12 +431,21 @@ export async function handler(event) {
       });
     }
 
+    // Staff-only. Explains a zero-photo album without needing a redeploy:
+    // whether Google served us a real page, whether any media URLs were in
+    // it, and what shape they're in. Never sent to families.
+    const isStaff = !!identity.role;
+    const diagnostic = (isStaff && album.diagnostic)
+      ? { ...album.diagnostic, album_url: albumUrl }
+      : undefined;
+
     return json(200, {
       album_url: albumUrl,
       title: album.title,
       count: album.photos.length,
       photos: album.photos,
       degraded: album.photos.length === 0,
+      diagnostic,
       hint: album.photos.length === 0
         ? "The album didn't return any photos — it may be empty, or link sharing may be turned off."
         : undefined,
