@@ -239,16 +239,77 @@ export function findShareUrl(html) {
   return m ? m[0] : null;
 }
 
-/** Album title from the page's og:title, if present. */
-export function extractTitle(html) {
-  const m =
-    /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i.exec(html) ||
-    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i.exec(html);
-  if (!m) return null;
-  const t = m[1].trim();
+/** Decode the HTML entities that show up in meta tag content. */
+function decodeEntities(s) {
+  return String(s || "")
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&");   // last, so "&amp;lt;" doesn't become "<"
+}
+
+/**
+ * Tidy Google's og:title into something printable.
+ *
+ * Google appends its own furniture to the album name — a date and a media-type
+ * emoji, e.g. "Bali Spring 2026 · Thursday, Jul 23 📷". The name is everything
+ * before that. Entities also arrive encoded (&amp;), and double-escaping them
+ * on the way into the DOM is what produced "New Zealand &amp; Australia".
+ */
+export function cleanAlbumTitle(raw) {
+  let t = decodeEntities(raw).trim();
+  if (!t) return null;
+
+  // Drop trailing media-type emoji / pictographs.
+  t = t.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, "").trim();
+
+  // Drop a trailing " · <date-ish>" segment: a weekday, a month name, or a
+  // bare date. Only the last segment, and only when it looks like a date —
+  // album names legitimately contain middots.
+  t = t.replace(
+    /\s*[·•]\s*(?:(?:Mon|Tues?|Wed(?:nes)?|Thur?s?|Fri|Sat(?:ur)?|Sun)(?:day)?,?\s*)?(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s*\d{1,2}(?:,?\s*\d{4})?\s*$/i,
+    ""
+  );
+  t = t.replace(/\s*[·•]\s*\d{1,2}\/\d{1,2}\/\d{2,4}\s*$/, "");
+  t = t.replace(/\s{2,}/g, " ").replace(/\s*[·•]\s*$/, "").trim();
+
   // Google uses a generic og:title for albums with no name.
   if (!t || /^google photos$/i.test(t)) return null;
   return t;
+}
+
+/** Album title from the page's og:title, if present. */
+export function extractTitle(html) {
+  const m =
+    /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']*)["']/i.exec(html) ||
+    /<meta[^>]+content=["']([^"']*)["'][^>]+property=["']og:title["']/i.exec(html);
+  return m ? cleanAlbumTitle(m[1]) : null;
+}
+
+/** The album's cover image, as advertised to link-preview crawlers. */
+export function extractOgImage(html) {
+  const m =
+    /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i.exec(html) ||
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i.exec(html);
+  return m ? decodeEntities(m[1]).split("=")[0] : null;
+}
+
+/**
+ * True when the only thing we managed to extract is the album cover.
+ *
+ * Google serves server-side fetchers a page carrying just the og:image
+ * preview, not the album contents. Reporting that as "1 photo" is worse than
+ * reporting nothing: the family sees a lone thumbnail — often a cover crop
+ * that isn't even representative — and assumes that's the whole trip. Treat
+ * it as a failed extraction so the page falls back to the widget.
+ */
+export function isCoverOnly(photos, ogImage) {
+  if (!ogImage || photos.length !== 1) return false;
+  return photos[0].url === ogImage;
 }
 
 async function fetchPage(url) {
@@ -296,6 +357,12 @@ async function loadAlbum(albumUrl) {
       photos = extractPhotos(html);
     }
   }
+
+  // A single photo that is exactly the og:image means we got the link-preview
+  // cover and nothing else — i.e. extraction failed. Report it as empty so
+  // the page falls back rather than showing one unrepresentative thumbnail.
+  const ogImage = extractOgImage(html);
+  if (isCoverOnly(photos, ogImage)) photos = [];
 
   const value = {
     photos,
