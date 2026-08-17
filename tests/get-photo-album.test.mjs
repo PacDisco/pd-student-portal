@@ -1,11 +1,21 @@
 // Unit tests for the Google Photos parsing helpers in get-photo-album.js.
-// Run with:  node netlify/functions/get-photo-album.test.mjs
+// Run with:  node tests/get-photo-album.test.mjs
+//
+// This file MUST stay outside netlify/functions/. Netlify treats every file in
+// that directory as a deployable function, and "get-photo-album.test" is an
+// illegal function name (alphanumerics, hyphens and underscores only) — it
+// fails the entire build, not just that one function.
 //
 // These cover the parsing logic only — the HubSpot/auth path needs live
 // credentials and is exercised by hitting the deployed endpoint.
 
 import assert from "node:assert/strict";
-import { extractPhotos, extractTitle, isGooglePhotosLink, normalizeAlbumUrl } from "./get-photo-album.js";
+import {
+  extractPhotos,
+  extractTitle,
+  isGooglePhotosLink,
+  normalizeAlbumUrl,
+} from "../netlify/functions/get-photo-album.js";
 
 let passed = 0;
 function test(name, fn) {
