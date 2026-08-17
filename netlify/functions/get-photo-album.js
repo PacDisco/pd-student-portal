@@ -191,15 +191,28 @@ export function extractPhotos(html) {
  * shape changed look identical from the outside, and these counts tell them
  * apart without a redeploy.
  */
-export function describeAlbumHtml(html) {
+export function describeAlbumHtml(html, finalUrl) {
   const s = String(html || "");
   const count = (re) => (s.match(re) || []).length;
   const firstPw = s.indexOf("lh3.googleusercontent.com/pw/");
+  const titleMatch = /<title[^>]*>([^<]{0,120})/i.exec(s);
+
+  // Distinguish "Google served a wall" from "Google served a JS-only shell".
+  // A wall means the fetch strategy is wrong and is worth fixing; a shell
+  // means server-side extraction can't work at all for this album.
+  const url = String(finalUrl || "");
+  const wall =
+    /consent\.google\.com|\/sorry\/|accounts\.google\.com/i.test(url) ||
+    /Before you continue|unusual traffic|enable JavaScript and cookies|Sign in - Google/i.test(s.slice(0, 4000));
+
   return {
     html_bytes: s.length,
     af_init_blobs: count(/AF_initDataCallback/g),
     lh3_urls: count(/lh3\.googleusercontent\.com/g),
     pw_urls: count(/lh3\.googleusercontent\.com\/pw\//g),
+    page_title: titleMatch ? titleMatch[1].trim() : null,
+    final_url: url || null,
+    looks_like_wall: wall,
     // A short window around the first media URL: enough to see the shape
     // Google is using now, not enough to be a data dump.
     first_pw_context: firstPw === -1 ? null : s.slice(Math.max(0, firstPw - 120), firstPw + 200),
@@ -228,6 +241,12 @@ async function loadAlbum(albumUrl) {
       "User-Agent": UA,
       "Accept": "text/html,application/xhtml+xml",
       "Accept-Language": "en-US,en;q=0.9",
+      // Google shows an interstitial consent wall to clients it can't place
+      // — which includes datacenter IPs like Netlify's. The wall is a real
+      // HTML page (so the fetch "succeeds") but carries no album data. This
+      // is the standard pre-accepted consent cookie; harmless if the album
+      // page would have been served anyway.
+      "Cookie": "CONSENT=YES+cb.20240101-00-p0.en+FX+000",
     },
   });
   if (!res.ok) {
@@ -242,7 +261,7 @@ async function loadAlbum(albumUrl) {
     photos,
     title: extractTitle(html),
     // Only computed when there's something to explain.
-    diagnostic: photos.length ? null : describeAlbumHtml(html),
+    diagnostic: photos.length ? null : describeAlbumHtml(html, res.url),
   };
   _albumCache.set(albumUrl, { ts: Date.now(), value });
   return value;
@@ -411,6 +430,24 @@ export async function handler(event) {
     }
 
     // ---- 4. Read the album ----
+    // Server-side extraction is the preferred path (first-party, no external
+    // script, link stays off the page). It only works if Google serves the
+    // real album page to this datacenter IP rather than a consent wall.
+    // When it doesn't, the page falls back to the publicalbum widget, which
+    // runs in the family's browser. Set SKIP_ALBUM_SCRAPE=1 on the Netlify
+    // site to stop attempting it at all and save the round trip.
+    if (String(process.env.SKIP_ALBUM_SCRAPE || "") === "1") {
+      return json(200, {
+        album_url: albumUrl,
+        title: null,
+        count: 0,
+        photos: [],
+        degraded: true,
+        skipped_scrape: true,
+        trip,
+      });
+    }
+
     let album;
     try {
       album = await loadAlbum(albumUrl);
