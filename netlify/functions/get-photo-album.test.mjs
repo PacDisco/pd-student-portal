@@ -5,7 +5,7 @@
 // credentials and is exercised by hitting the deployed endpoint.
 
 import assert from "node:assert/strict";
-import { extractPhotos, extractTitle, isGooglePhotosLink } from "./get-photo-album.js";
+import { extractPhotos, extractTitle, isGooglePhotosLink, normalizeAlbumUrl } from "./get-photo-album.js";
 
 let passed = 0;
 function test(name, fn) {
@@ -34,10 +34,6 @@ test("rejects a non-photos goo.gl link", () => {
   assert.equal(isGooglePhotosLink("https://goo.gl/maps/abc123"), false);
 });
 
-test("rejects http (no TLS)", () => {
-  assert.equal(isGooglePhotosLink("http://photos.app.goo.gl/abc"), false);
-});
-
 test("rejects an arbitrary host (SSRF guard)", () => {
   assert.equal(isGooglePhotosLink("https://evil.example.com/album"), false);
   assert.equal(isGooglePhotosLink("http://169.254.169.254/latest/meta-data/"), false);
@@ -50,8 +46,70 @@ test("rejects a lookalike subdomain", () => {
 test("rejects blank / garbage", () => {
   assert.equal(isGooglePhotosLink(""), false);
   assert.equal(isGooglePhotosLink(null), false);
+  assert.equal(isGooglePhotosLink(undefined), false);
   assert.equal(isGooglePhotosLink("not a url"), false);
-  assert.equal(isGooglePhotosLink("photos.app.goo.gl/abc"), false); // no scheme
+});
+
+test("rejects a bare domain with no album path", () => {
+  assert.equal(isGooglePhotosLink("https://photos.google.com"), false);
+  assert.equal(isGooglePhotosLink("https://photos.google.com/"), false);
+});
+
+// ---------------------------------------------------------------------------
+// normalizeAlbumUrl — HubSpot's URL field type hands back a plain string and
+// is lenient about what it accepts, so these are the shapes a pasted link
+// actually arrives in.
+// ---------------------------------------------------------------------------
+console.log("\nnormalizeAlbumUrl");
+
+test("passes a clean https link through unchanged", () => {
+  assert.equal(
+    normalizeAlbumUrl("https://photos.app.goo.gl/aBcDeF12345"),
+    "https://photos.app.goo.gl/aBcDeF12345"
+  );
+});
+
+test("adds the scheme when HubSpot stored it without one", () => {
+  assert.equal(
+    normalizeAlbumUrl("photos.app.goo.gl/aBcDeF12345"),
+    "https://photos.app.goo.gl/aBcDeF12345"
+  );
+});
+
+test("upgrades http to https", () => {
+  assert.equal(
+    normalizeAlbumUrl("http://photos.app.goo.gl/aBcDeF12345"),
+    "https://photos.app.goo.gl/aBcDeF12345"
+  );
+});
+
+test("trims surrounding whitespace from a paste", () => {
+  assert.equal(
+    normalizeAlbumUrl("  https://photos.app.goo.gl/aBcDeF12345\n"),
+    "https://photos.app.goo.gl/aBcDeF12345"
+  );
+});
+
+test("tolerates a mixed-case host", () => {
+  assert.equal(
+    normalizeAlbumUrl("https://Photos.App.Goo.Gl/aBcDeF12345"),
+    "https://photos.app.goo.gl/aBcDeF12345"
+  );
+});
+
+test("keeps the query string (share links carry ?key=)", () => {
+  assert.equal(
+    normalizeAlbumUrl("https://photos.google.com/share/AF1QipAbC?key=xyz123"),
+    "https://photos.google.com/share/AF1QipAbC?key=xyz123"
+  );
+});
+
+test("returns null for anything off the allow-list", () => {
+  assert.equal(normalizeAlbumUrl("https://evil.example.com/album"), null);
+  assert.equal(normalizeAlbumUrl("evil.example.com/album"), null);       // scheme-less too
+  assert.equal(normalizeAlbumUrl("javascript:alert(1)"), null);
+  assert.equal(normalizeAlbumUrl("file:///etc/passwd"), null);
+  assert.equal(normalizeAlbumUrl("data:text/html,<script>"), null);
 });
 
 // ---------------------------------------------------------------------------
