@@ -33,7 +33,7 @@ import { authenticate, authError } from "./_shared/auth.js";
  */
 
 const OBJECT = "2-58411705";           // Portal custom object, same as portal.js
-const ALBUM_PROP = "photo_album_link"; // HubSpot single-line text property
+const ALBUM_PROP = "photo_album_link"; // HubSpot URL property (read as a string)
 
 // Google Photos share links we accept. Anything else is rejected rather
 // than fetched — this property is admin-entered, but it still shouldn't be
@@ -83,14 +83,42 @@ function deriveSeasonYear(props) {
 // Google Photos shared-album parsing
 // ---------------------------------------------------------------------------
 
+/**
+ * Normalize whatever is in the HubSpot URL property into a share link we're
+ * willing to fetch, or null if it isn't one.
+ *
+ * HubSpot's URL field type hands the value back as a plain string and is
+ * lenient about what it accepts, so this tolerates the ways a link actually
+ * arrives from a copy/paste: surrounding whitespace, a missing scheme
+ * ("photos.app.goo.gl/abc"), an http:// scheme, and mixed-case hosts. The
+ * host allow-list is the actual security boundary — it's what stops this
+ * property from pointing the server at an arbitrary URL (SSRF).
+ */
+export function normalizeAlbumUrl(raw) {
+  let s = String(raw == null ? "" : raw).trim();
+  if (!s) return null;
+
+  // Scheme-less paste — HubSpot renders these as links, so treat them as URLs.
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(s)) s = "https://" + s;
+
+  let u;
+  try { u = new URL(s); } catch { return null; }
+
+  // Only web schemes, and always fetch over TLS.
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  u.protocol = "https:";
+
+  const host = u.hostname.toLowerCase();
+  if (!ALLOWED_HOSTS.has(host)) return null;
+  if (host === "goo.gl" && !u.pathname.startsWith("/photos/")) return null;
+  if (u.pathname === "" || u.pathname === "/") return null;   // bare domain
+
+  return u.toString();
+}
+
 /** True if `raw` is a share link we're willing to fetch. */
 export function isGooglePhotosLink(raw) {
-  let u;
-  try { u = new URL(String(raw || "").trim()); } catch { return false; }
-  if (u.protocol !== "https:") return false;
-  if (!ALLOWED_HOSTS.has(u.hostname)) return false;
-  if (u.hostname === "goo.gl" && !u.pathname.startsWith("/photos/")) return false;
-  return true;
+  return normalizeAlbumUrl(raw) !== null;
 }
 
 /**
@@ -278,8 +306,8 @@ export async function handler(event) {
       year,
     };
 
-    const albumUrl = String(props[ALBUM_PROP] || "").trim();
-    if (!albumUrl) {
+    const rawAlbum = String(props[ALBUM_PROP] || "").trim();
+    if (!rawAlbum) {
       return json(404, {
         error: "No photo album for this trip yet",
         code: "NO_ALBUM",
@@ -287,7 +315,11 @@ export async function handler(event) {
         trip,
       });
     }
-    if (!isGooglePhotosLink(albumUrl)) {
+    // Normalized once here — everything downstream (the fetch and the
+    // "open in Google Photos" button) uses the cleaned https URL, so a
+    // scheme-less paste in HubSpot still produces a working link.
+    const albumUrl = normalizeAlbumUrl(rawAlbum);
+    if (!albumUrl) {
       return json(422, {
         error: "The album link on this trip isn't a valid Google Photos link",
         code: "BAD_LINK",
