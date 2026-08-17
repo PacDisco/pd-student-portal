@@ -332,10 +332,28 @@
     c.innerHTML = `<div>${attrEsc(msg)}</div>${hint ? `<div style="color:#666;font-size:12px;margin-top:8px;">${attrEsc(hint)}</div>` : ""}`;
   }
 
-  function renderEmpty(msg) {
+  function renderEmpty(msg, data) {
     const c = document.getElementById("content");
     c.className = "empty";
     c.textContent = msg;
+
+    // Staff-only diagnostic. Families just see the friendly message above;
+    // an admin also gets which Portal record was read and which property was
+    // checked, so "no album" can be told apart from "pasted on the wrong
+    // record" or "property misnamed" without opening the network tab.
+    const isAdmin = !!sessionStorage.getItem("adminRole");
+    if (isAdmin && data && data.portal_id) {
+      const d = document.createElement("div");
+      d.style.cssText = "margin-top:18px;font-size:11px;color:#aaa;letter-spacing:0.3px;line-height:1.7;";
+      const exists = data.property_exists === false ? "missing"
+                   : data.property_exists === true ? "exists"
+                   : "unknown";
+      d.innerHTML =
+        `<strong style="color:#999;">ADMIN DIAGNOSTIC</strong><br>` +
+        `Read Portal record <a href="${attrEsc(data.portal_url || "#")}" target="_blank" rel="noopener" style="color:#55BBD2;">${attrEsc(data.portal_id)}</a><br>` +
+        `Property <code>${attrEsc(data.property_checked || "photo_album_link")}</code> — ${exists}, value empty`;
+      c.appendChild(d);
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -444,7 +462,7 @@
       if (res.status === 403) {
         renderError("You don't have access to this trip's photos.");
       } else if (res.status === 404) {
-        renderEmpty(data.hint || data.error || "No photos available for this trip yet.");
+        renderEmpty(data.hint || data.error || "No photos available for this trip yet.", data);
       } else {
         renderError(data.error || ("HTTP " + res.status), data.hint);
       }
