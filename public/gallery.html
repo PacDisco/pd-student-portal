@@ -515,20 +515,51 @@
   //     replaced with a plain "open the album" card, never a blank box.
   // -------------------------------------------------------------------------
 
-  // If publicalbum change their CDN path, this is the only line to update.
-  // Current snippet + attribute reference: https://www.publicalbum.org/
-  const PA_EMBED_SCRIPT = "https://www.publicalbum.org/pa-embed-player-2.0.min.js";
-  const WIDGET_TIMEOUT_MS = 6000;
+  // publicalbum never publish the CDN path in their docs — they only hand it
+  // out through their code generator — so these are the two paths that have
+  // appeared in the wild. Tried in order; the first that loads wins, and if
+  // both 404 the watchdog below shows the fallback card. If you generate a
+  // snippet on publicalbum.org and it cites a different URL, put it first.
+  const PA_EMBED_SCRIPTS = [
+    "https://www.publicalbum.org/pa-embed-player-2.0.min.js",
+    "https://www.publicalbum.org/js/pa-embed-player.min.js",
+  ];
+  const WIDGET_TIMEOUT_MS = 8000;
   let _paScriptState = null;   // null | "loading" | "ok" | "failed"
 
-  function loadPaScript() {
-    if (_paScriptState) return;
+  function loadPaScript(i) {
+    const idx = i || 0;
+    if (idx === 0 && _paScriptState) return;   // already attempted
+    if (idx >= PA_EMBED_SCRIPTS.length) {
+      _paScriptState = "failed";
+      console.warn("[gallery] no publicalbum script URL loaded:", PA_EMBED_SCRIPTS);
+      return;
+    }
     _paScriptState = "loading";
     const s = document.createElement("script");
-    s.src = PA_EMBED_SCRIPT;
+    s.src = PA_EMBED_SCRIPTS[idx];
     s.async = true;
-    s.onload = () => { _paScriptState = "ok"; };
-    s.onerror = () => { _paScriptState = "failed"; };
+
+    // Move on for either failure mode. A wrong path 404s and fires onerror,
+    // but a blocked or stalled CDN just hangs — without this timer the second
+    // candidate would never be tried.
+    let settled = false;
+    const next = (why) => {
+      if (settled) return;
+      settled = true;
+      console.warn("[gallery] publicalbum script " + why + ":", s.src);
+      loadPaScript(idx + 1);
+    };
+    const stall = setTimeout(() => next("timed out"), 3000);
+
+    s.onload = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(stall);
+      _paScriptState = "ok";
+      console.log("[gallery] publicalbum script loaded:", s.src);
+    };
+    s.onerror = () => { clearTimeout(stall); next("failed"); };
     document.head.appendChild(s);
   }
 
@@ -558,7 +589,7 @@
     // publicalbum reads these off the container; its script un-hides the
     // element (it ships display:none) once it has rendered the album.
     mount.innerHTML = `
-      <div class="pa-gallery-player-widget"
+      <div class="pa-gallery-player-widget pa-embed-player"
            style="width:100%; height:520px; display:none;"
            data-link="${attrEsc(payload.album_url)}"
            data-title="${attrEsc(title)}"
