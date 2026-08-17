@@ -30,6 +30,10 @@ import { authenticate, authError } from "./_shared/auth.js";
  * Required env vars (on the pd-student-portal Netlify site):
  *   HUBSPOT_API_KEY   — same one portal.js uses
  *   SESSION_SECRET    — same one _shared/auth.js uses
+ *
+ * Unit tests for the parsing helpers live in tests/get-photo-album.test.mjs —
+ * deliberately outside this directory, because Netlify tries to deploy every
+ * file in netlify/functions/ as a function and rejects names containing dots.
  */
 
 const OBJECT = "2-58411705";           // Portal custom object, same as portal.js
