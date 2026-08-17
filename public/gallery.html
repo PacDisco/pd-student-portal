@@ -416,8 +416,12 @@
       trip.season && trip.year ? `${trip.season} ${trip.year}` : null,
       trip.destination,
     ].filter(Boolean).join(" · ");
+    // Prefer the HubSpot portal title: staff control it, and it matches what
+    // the trip is called everywhere else in the portal. Google's album title
+    // is a fallback — it's whatever someone typed in Google Photos, plus
+    // Google's own date/emoji furniture.
     const heading =
-      payload.title || trip.portal_title || trip.program_name || trip.destination || "Trip photos";
+      trip.portal_title || trip.program_name || payload.title || trip.destination || "Trip photos";
     const count = PHOTOS.length;
 
     // Two ways to show photos, in order of preference:
