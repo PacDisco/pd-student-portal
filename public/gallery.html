@@ -438,6 +438,21 @@
           </button>`).join("")}</div>`
       : `<div id="paMount"></div>`;
 
+    // The "open in Google Photos" bar only exists when the server chose to
+    // send a link. On the normal path — photos extracted server-side and
+    // rendered above — it withholds the link, so there's no button, and the
+    // album URL is nowhere in the page source. The bar comes back only when
+    // the link is genuinely needed (the widget/fallback paths, where the
+    // alternative is showing a family nothing) or for staff.
+    const actions = payload.album_url
+      ? `<div class="album-actions">
+           <a class="btn-open" href="${attrEsc(payload.album_url)}" target="_blank" rel="noopener noreferrer">
+             OPEN IN GOOGLE PHOTOS
+           </a>
+           <span class="album-note">Open the album to download full-resolution copies or add your own photos.</span>
+         </div>`
+      : "";
+
     // Staff-only: why did the album come back empty? The function reports
     // what Google actually served, so "page needs JavaScript" can be told
     // apart from "markup shape changed" without another deploy.
@@ -453,6 +468,7 @@
           "lh3 /pw/ urls:  " + d.pw_urls + "\n" +
           "page_title:     " + (d.page_title || "(none)") + "\n" +
           "final_url:      " + (d.final_url || "(none)") + "\n" +
+          "resolved_share: " + (d.resolved_share_url || "(short link not resolved)") + "\n" +
           "looks_like_wall:" + (d.looks_like_wall ? " YES — Google served a consent/challenge page"
                                                   : " no") + "\n" +
           "first /pw/ context:\n" + (d.first_pw_context || "(none found)")
@@ -466,12 +482,7 @@
           <span class="sub">${attrEsc(tripLine)}</span>
           ${count ? `<span class="pill">${count} PHOTO${count !== 1 ? "S" : ""}</span>` : ""}
         </div>
-        <div class="album-actions">
-          <a class="btn-open" href="${attrEsc(payload.album_url)}" target="_blank" rel="noopener noreferrer">
-            OPEN IN GOOGLE PHOTOS
-          </a>
-          <span class="album-note">Open the album to download full-resolution copies or add your own photos.</span>
-        </div>
+        ${actions}
         ${grid}
         ${diagBlock}
       </div>
