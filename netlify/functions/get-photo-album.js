@@ -358,18 +358,15 @@ async function loadAlbum(albumUrl) {
     }
   }
 
-  // A single photo that is exactly the og:image means we got the link-preview
-  // cover and nothing else — i.e. extraction failed. Report it as empty so
-  // the page falls back rather than showing one unrepresentative thumbnail.
-  //
-  // The one case where suppressing is wrong: an album that genuinely holds a
-  // single photo, which is therefore also its cover. Nothing in the HTML can
-  // tell those two apart. Set ALLOW_COVER_ONLY=1 to render it anyway — and
-  // see below for how to tell which situation you're actually in.
+  // Note on a wrong turn, so nobody re-adds it: this used to discard a lone
+  // photo that matched the og:image, on the theory that Google only ships the
+  // cover to server-side fetchers. That theory was wrong — the album list IS
+  // in the HTML, and the guard was hiding legitimate single-photo albums. An
+  // album with one photo has that photo as its cover, which is exactly what
+  // the check keyed on. Kept as opt-in only.
   const ogImage = extractOgImage(html);
-  const allowCoverOnly = String(process.env.ALLOW_COVER_ONLY || "") === "1";
   const coverOnly = isCoverOnly(photos, ogImage);
-  if (coverOnly && !allowCoverOnly) photos = [];
+  if (coverOnly && String(process.env.STRICT_COVER_ONLY || "") === "1") photos = [];
 
   const value = {
     photos,
@@ -600,11 +597,13 @@ export async function handler(event) {
     // It still has to be sent when there are no photos to show, because the
     // page then falls back to the publicalbum widget (which needs data-link)
     // or to a "view the album" card, and a dead end is worse than a link.
-    // Staff always get it, and EXPOSE_ALBUM_LINK=1 restores the old
-    // everyone-gets-a-button behaviour if you change your mind.
+    //
+    // Staff used to be exempt so support could click through, but that just
+    // meant admins saw a button families didn't and kept reporting it as a
+    // bug. Nobody gets it on the happy path now. EXPOSE_ALBUM_LINK=1 brings
+    // the button back for everyone.
     const linkAllowed =
       album.photos.length === 0 ||
-      !!identity.role ||
       String(process.env.EXPOSE_ALBUM_LINK || "") === "1";
 
     // Staff-only. Explains a zero-photo album without needing a redeploy:
