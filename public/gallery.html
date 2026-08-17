@@ -431,6 +431,23 @@
           </button>`).join("")}</div>`
       : `<p class="album-note">${attrEsc(payload.hint || "No photos in this album yet — check back soon.")}</p>`;
 
+    // Staff-only: why did the album come back empty? The function reports
+    // what Google actually served, so "page needs JavaScript" can be told
+    // apart from "markup shape changed" without another deploy.
+    const d = payload.diagnostic;
+    const diagBlock = (d && sessionStorage.getItem("adminRole"))
+      ? `<pre style="margin:18px 0 0;padding:12px;background:#f6f8f9;border:1px solid #e5e7eb;
+                     font-size:11px;line-height:1.7;color:#666;white-space:pre-wrap;
+                     word-break:break-all;font-family:ui-monospace,Menlo,monospace;">${attrEsc(
+          "ADMIN DIAGNOSTIC — album page as fetched by the server\n" +
+          "html_bytes:     " + d.html_bytes + "\n" +
+          "AF_initData:    " + d.af_init_blobs + "\n" +
+          "lh3 urls:       " + d.lh3_urls + "\n" +
+          "lh3 /pw/ urls:  " + d.pw_urls + "\n" +
+          "first /pw/ context:\n" + (d.first_pw_context || "(none found)")
+        )}</pre>`
+      : "";
+
     c.innerHTML = `
       <div class="gallery-shell">
         <div class="gallery-meta">
@@ -445,6 +462,7 @@
           <span class="album-note">Open the album to download full-resolution copies or add your own photos.</span>
         </div>
         ${grid}
+        ${diagBlock}
       </div>
       <a class="switch-link" href="/my-trips.html">&lsaquo; SWITCH TRIP</a>
     `;
