@@ -91,28 +91,118 @@
     .portal-card-destination { font-size: 12px; color: #666; margin: 0 0 10px; }
     .portal-card-cta { margin-top: 14px; font-size: 11px; letter-spacing: 1.5px; font-weight: 600; color: #55BBD2; }
 
-    /* Gallery viewer (single-trip view) */
+    /* Album shell */
     .gallery-shell {
       background: white;
       border: 1px solid #e5e7eb;
       border-top: 4px solid #59a1aa;
-      padding: 18px 18px 0;
+      padding: 18px;
     }
-    .gallery-meta { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; margin-bottom: 14px; }
+    .gallery-meta { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; margin-bottom: 16px; }
     .gallery-meta h2 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: 0.4px; }
     .gallery-meta .sub { font-size: 12px; color: #666; }
-    .gallery-meta .pill { margin-left: auto; font-size: 11px; letter-spacing: 0.6px; color: #59a1aa; }
-    .gallery-frame {
-      width: 100%;
-      height: calc(100vh - 220px);
-      min-height: 480px;
+    .gallery-meta .pill { margin-left: auto; font-size: 11px; letter-spacing: 0.6px; color: #59a1aa; white-space: nowrap; }
+
+    .album-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 18px; }
+    .btn-open {
+      display: inline-block;
+      background: #55BBD2;
+      color: #fff;
+      text-decoration: none;
+      font-size: 11px;
+      letter-spacing: 1.2px;
+      font-weight: 600;
+      padding: 10px 18px;
       border: 0;
-      background: #f8fafc;
-      display: block;
+      transition: background 0.2s ease;
     }
+    .btn-open:hover { background: #3fa8c0; }
+    .album-note { font-size: 12px; color: #777; line-height: 1.5; }
+
+    /* Photo grid */
+    .photo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 8px;
+    }
+    .photo-cell {
+      position: relative;
+      padding-top: 100%;
+      background: #eef1f3;
+      overflow: hidden;
+      cursor: zoom-in;
+      border: 0;
+      padding-left: 0;
+      padding-right: 0;
+      padding-bottom: 0;
+      display: block;
+      width: 100%;
+    }
+    .photo-cell img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      opacity: 0;
+      transition: opacity 0.35s ease, transform 0.35s ease;
+    }
+    .photo-cell img.is-loaded { opacity: 1; }
+    .photo-cell:hover img.is-loaded { transform: scale(1.04); }
+    .photo-cell:focus-visible { outline: 3px solid #55BBD2; outline-offset: 2px; }
+
+    /* Lightbox */
+    .lb {
+      position: fixed;
+      inset: 0;
+      background: rgba(15,23,42,0.94);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .lb.is-open { display: flex; }
+    .lb img {
+      max-width: 92vw;
+      max-height: 84vh;
+      object-fit: contain;
+      display: block;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+    }
+    .lb-btn {
+      position: absolute;
+      background: rgba(255,255,255,0.10);
+      border: 1px solid rgba(255,255,255,0.28);
+      color: #fff;
+      font-family: inherit;
+      font-size: 22px;
+      line-height: 1;
+      width: 46px;
+      height: 46px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .lb-btn:hover { background: rgba(255,255,255,0.22); }
+    .lb-prev { left: 16px; top: 50%; transform: translateY(-50%); }
+    .lb-next { right: 16px; top: 50%; transform: translateY(-50%); }
+    .lb-close { right: 16px; top: 16px; font-size: 18px; }
+    .lb-count {
+      position: absolute;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255,255,255,0.75);
+      font-size: 12px;
+      letter-spacing: 1.2px;
+    }
+
     .switch-link {
       display: inline-block;
-      margin-top: 10px;
+      margin-top: 14px;
       font-size: 11px;
       letter-spacing: 1.2px;
       color: #55BBD2;
@@ -125,7 +215,9 @@
       header { flex-wrap: wrap; }
       header .nav-row { margin-left: 0; width: 100%; justify-content: space-between; }
       header .who { width: 100%; margin-left: 0; margin-top: 4px; opacity: 0.7; }
-      .gallery-frame { height: calc(100vh - 260px); }
+      .photo-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; }
+      .lb-prev { left: 8px; }
+      .lb-next { right: 8px; }
     }
   </style>
 </head>
@@ -142,6 +234,16 @@
 <main>
   <div id="content" class="loading">LOADING PHOTOS…</div>
 </main>
+
+<!-- Lightbox lives outside #content so re-renders don't clobber it -->
+<div class="lb" id="lightbox" role="dialog" aria-modal="true" aria-label="Photo viewer">
+  <button class="lb-btn lb-close" type="button" id="lbClose" aria-label="Close">&#10005;</button>
+  <button class="lb-btn lb-prev" type="button" id="lbPrev" aria-label="Previous photo">&#8249;</button>
+  <img id="lbImg" alt="">
+  <button class="lb-btn lb-next" type="button" id="lbNext" aria-label="Next photo">&#8250;</button>
+  <div class="lb-count" id="lbCount"></div>
+</div>
+
 <script>
   /* --- session: attach Bearer token to all function calls; 401 -> login --- */
   (function(){
@@ -170,12 +272,13 @@
       });
     };
   })();
+
   const email = sessionStorage.getItem("portalEmail");
   const firstName = sessionStorage.getItem("firstName") || "";
   const selectedPortalId = sessionStorage.getItem("selectedPortalId") || "";
 
   // Auth gate (matches my-trips.html / index.html pattern). We deliberately
-  // don't bounce admins out — they can view the family-facing gallery too,
+  // don't bounce admins out — they can view the family-facing album too,
   // useful for testing and parent-support calls.
   if (!email) {
     window.location.href = "/login.html";
@@ -235,48 +338,130 @@
     c.textContent = msg;
   }
 
-  // Single-trip gallery — embeds the pd-media gallery in an iframe so the
-  // signed URL stays inside this page. The token is short-lived (1 hour);
-  // a fresh one is minted on every visit.
-  function renderGallery(payload) {
+  // -------------------------------------------------------------------------
+  // Lightbox
+  // -------------------------------------------------------------------------
+  let PHOTOS = [];
+  let lbIndex = 0;
+  const lb = document.getElementById("lightbox");
+  const lbImg = document.getElementById("lbImg");
+  const lbCount = document.getElementById("lbCount");
+
+  // Google's lh3 CDN takes size directives on the base URL. `-w` caps width,
+  // `-c` crops to the box. Asking for exactly what we render keeps the grid
+  // light on mobile data — full-size trip photos are often 4-8MB each.
+  function sized(url, spec) { return url + "=" + spec; }
+
+  function openLightbox(i) {
+    if (!PHOTOS.length) return;
+    lbIndex = (i + PHOTOS.length) % PHOTOS.length;
+    const p = PHOTOS[lbIndex];
+    lbImg.src = sized(p.url, "w2048");
+    lbImg.alt = `Trip photo ${lbIndex + 1} of ${PHOTOS.length}`;
+    lbCount.textContent = `${lbIndex + 1} / ${PHOTOS.length}`;
+    lb.classList.add("is-open");
+    document.body.style.overflow = "hidden";
+    // Warm the neighbours so arrowing through feels instant.
+    [lbIndex + 1, lbIndex - 1].forEach(n => {
+      const q = PHOTOS[(n + PHOTOS.length) % PHOTOS.length];
+      if (q) { const im = new Image(); im.src = sized(q.url, "w2048"); }
+    });
+  }
+
+  function closeLightbox() {
+    lb.classList.remove("is-open");
+    lbImg.removeAttribute("src");
+    document.body.style.overflow = "";
+  }
+
+  document.getElementById("lbClose").addEventListener("click", closeLightbox);
+  document.getElementById("lbPrev").addEventListener("click", () => openLightbox(lbIndex - 1));
+  document.getElementById("lbNext").addEventListener("click", () => openLightbox(lbIndex + 1));
+  lb.addEventListener("click", (e) => { if (e.target === lb) closeLightbox(); });
+  document.addEventListener("keydown", (e) => {
+    if (!lb.classList.contains("is-open")) return;
+    if (e.key === "Escape") closeLightbox();
+    else if (e.key === "ArrowRight") openLightbox(lbIndex + 1);
+    else if (e.key === "ArrowLeft") openLightbox(lbIndex - 1);
+  });
+
+  // -------------------------------------------------------------------------
+  // Album render
+  // -------------------------------------------------------------------------
+  function renderAlbum(payload) {
     const c = document.getElementById("content");
     c.className = "";
+    PHOTOS = Array.isArray(payload.photos) ? payload.photos : [];
+
+    const trip = payload.trip || {};
     const tripLine = [
-      payload.trip.season && payload.trip.year ? `${payload.trip.season} ${payload.trip.year}` : null,
-      payload.trip.destination,
+      trip.season && trip.year ? `${trip.season} ${trip.year}` : null,
+      trip.destination,
     ].filter(Boolean).join(" · ");
-    const count = payload.trip.approved_count || 0;
+    const heading =
+      payload.title || trip.portal_title || trip.program_name || trip.destination || "Trip photos";
+    const count = PHOTOS.length;
+
+    const grid = count
+      ? `<div class="photo-grid">${PHOTOS.map((p, i) => `
+          <button class="photo-cell" type="button" data-i="${i}" aria-label="Open photo ${i + 1}">
+            <img src="${attrEsc(sized(p.url, "w500-h500-c"))}"
+                 alt="Trip photo ${i + 1}"
+                 loading="lazy" decoding="async"
+                 onload="this.classList.add('is-loaded')"
+                 onerror="this.closest('.photo-cell').style.display='none'">
+          </button>`).join("")}</div>`
+      : `<p class="album-note">${attrEsc(payload.hint || "No photos in this album yet — check back soon.")}</p>`;
+
     c.innerHTML = `
       <div class="gallery-shell">
         <div class="gallery-meta">
-          <h2>${attrEsc(payload.trip.portal_title || payload.trip.program_name || payload.trip.destination || "Trip photos")}</h2>
+          <h2>${attrEsc(heading)}</h2>
           <span class="sub">${attrEsc(tripLine)}</span>
           <span class="pill">${count} PHOTO${count !== 1 ? "S" : ""}</span>
         </div>
-        <iframe class="gallery-frame" src="${attrEsc(payload.url)}" title="Trip photos"
-                allowfullscreen
-                sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox"
-                referrerpolicy="no-referrer-when-downgrade"></iframe>
+        <div class="album-actions">
+          <a class="btn-open" href="${attrEsc(payload.album_url)}" target="_blank" rel="noopener noreferrer">
+            OPEN IN GOOGLE PHOTOS
+          </a>
+          <span class="album-note">Open the album to download full-resolution copies or add your own photos.</span>
+        </div>
+        ${grid}
       </div>
       <a class="switch-link" href="/my-trips.html">&lsaquo; SWITCH TRIP</a>
     `;
+
+    c.querySelectorAll(".photo-cell").forEach(cell => {
+      cell.addEventListener("click", () => openLightbox(Number(cell.dataset.i)));
+    });
   }
 
-  async function loadForPortal(picked) {
-    const url = `/.netlify/functions/get-gallery-link?email=${encodeURIComponent(email)}&picked=${encodeURIComponent(picked)}`;
-    const res = await fetch(url);
-    const data = await res.json();
+  // -------------------------------------------------------------------------
+  // Load
+  // -------------------------------------------------------------------------
+  function handlePayload(res, data) {
     if (!res.ok) {
       if (res.status === 403) {
         renderError("You don't have access to this trip's photos.");
       } else if (res.status === 404) {
         renderEmpty(data.hint || data.error || "No photos available for this trip yet.");
       } else {
-        renderError(data.error || ("HTTP " + res.status));
+        renderError(data.error || ("HTTP " + res.status), data.hint);
       }
       return;
     }
-    renderGallery(data);
+    if (data.requirePicker && Array.isArray(data.portals)) {
+      renderPicker(data.portals);
+      return;
+    }
+    renderAlbum(data);
+  }
+
+  async function loadForPortal(picked) {
+    const url = `/.netlify/functions/get-photo-album?picked=${encodeURIComponent(picked)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    handlePayload(res, data);
   }
 
   async function init() {
@@ -287,21 +472,11 @@
         await loadForPortal(selectedPortalId);
         return;
       }
-      // Otherwise let the bridge endpoint figure it out — it handles single,
+      // Otherwise let the endpoint figure it out — it handles single,
       // multi-trip picker, and unauthorized cases in one call.
-      const res = await fetch(`/.netlify/functions/get-gallery-link?email=${encodeURIComponent(email)}`);
+      const res = await fetch("/.netlify/functions/get-photo-album");
       const data = await res.json();
-      if (!res.ok) {
-        if (res.status === 404) renderEmpty(data.hint || data.error || "No photos available yet.");
-        else renderError(data.error || ("HTTP " + res.status));
-        return;
-      }
-      if (data.requirePicker && Array.isArray(data.portals)) {
-        renderPicker(data.portals);
-        return;
-      }
-      // Single-trip path — bridge returned the gallery URL directly.
-      renderGallery(data);
+      handlePayload(res, data);
     } catch (err) {
       renderError("Network error: " + (err.message || String(err)));
     }
