@@ -11,7 +11,11 @@
 
 import assert from "node:assert/strict";
 import {
+  cleanAlbumTitle,
   describeAlbumHtml,
+  extractOgImage,
+  findShareUrl,
+  isCoverOnly,
   extractPhotos,
   extractTitle,
   isGooglePhotosLink,
@@ -240,6 +244,50 @@ test("the precise pass still wins when it matches", () => {
 });
 
 // ---------------------------------------------------------------------------
+// findShareUrl — digging the real album out of a short-link interstitial.
+//
+// photos.app.goo.gl is a Firebase Dynamic Link: it answers 200 with an HTML
+// page whose JS navigates onwards, so fetch's redirect following never fires
+// and we land on a page with no photos. These are the escapings the
+// destination URL shows up in.
+// ---------------------------------------------------------------------------
+console.log("\nfindShareUrl");
+
+const LONG = "https://photos.google.com/share/AF1QipPC6Yli?key=SDk3MTN5";
+
+test("finds a plain URL in markup", () => {
+  assert.equal(findShareUrl(`<a href="${LONG}">continue</a>`), LONG);
+});
+
+test("finds a URL with escaped slashes inside a JS string", () => {
+  const esc = `"https:\\/\\/photos.google.com\\/share\\/AF1QipPC6Yli?key=SDk3MTN5"`;
+  assert.equal(findShareUrl(esc), LONG);
+});
+
+test("finds a URL with unicode-escaped separators", () => {
+  const esc = `"https:\\u002F\\u002Fphotos.google.com\\u002Fshare\\u002FAF1QipPC6Yli?key\\u003dSDk3MTN5"`;
+  assert.equal(findShareUrl(esc), LONG);
+});
+
+test("handles an html-escaped ampersand", () => {
+  const html = `<meta http-equiv="refresh" content="0;url=${LONG}&amp;source=fdl">`;
+  assert.equal(findShareUrl(html), LONG);
+});
+
+test("keeps the key parameter — the album 404s without it", () => {
+  assert.ok(findShareUrl(`<a href="${LONG}">x</a>`).includes("?key="));
+});
+
+test("returns null when there's no album link to find", () => {
+  assert.equal(findShareUrl("<html><body>nothing here</body></html>"), null);
+  assert.equal(findShareUrl(""), null);
+});
+
+test("ignores share links on other hosts", () => {
+  assert.equal(findShareUrl(`<a href="https://evil.test/photos.google.com/share/AAA">x</a>`), null);
+});
+
+// ---------------------------------------------------------------------------
 // describeAlbumHtml — the staff-facing explanation of an empty album
 // ---------------------------------------------------------------------------
 console.log("\ndescribeAlbumHtml");
@@ -288,6 +336,70 @@ test("ignores the generic 'Google Photos' title", () => {
 
 test("returns null when there is no og:title", () => {
   assert.equal(extractTitle("<html><head></head></html>"), null);
+});
+
+// Regressions from a real album: the heading rendered as
+// "Fall 2026 - New Zealand &amp; Australia · Thursday, Jul 23 📷"
+test("decodes entities instead of double-escaping them", () => {
+  const h = `<meta property="og:title" content="Fall 2026 - New Zealand &amp; Australia">`;
+  assert.equal(extractTitle(h), "Fall 2026 - New Zealand & Australia");
+});
+
+test("strips Google's trailing date and camera emoji", () => {
+  const h = `<meta property="og:title" content="Fall 2026 - New Zealand &amp; Australia · Thursday, Jul 23 📷">`;
+  assert.equal(extractTitle(h), "Fall 2026 - New Zealand & Australia");
+});
+
+test("handles the date with a year, and a numeric date", () => {
+  assert.equal(cleanAlbumTitle("Bali Spring 2026 · Jul 23, 2026"), "Bali Spring 2026");
+  assert.equal(cleanAlbumTitle("Bali Spring 2026 · 7/23/26"), "Bali Spring 2026");
+});
+
+test("keeps a middot that is part of the album name", () => {
+  assert.equal(cleanAlbumTitle("Bali · Lombok Expedition"), "Bali · Lombok Expedition");
+});
+
+test("decodes numeric and hex entities", () => {
+  assert.equal(cleanAlbumTitle("Kate&#39;s trip"), "Kate's trip");
+  assert.equal(cleanAlbumTitle("Kate&#x27;s trip"), "Kate's trip");
+});
+
+test("returns null for an empty or generic title", () => {
+  assert.equal(cleanAlbumTitle("Google Photos"), null);
+  assert.equal(cleanAlbumTitle("  "), null);
+  assert.equal(cleanAlbumTitle("📷"), null);
+});
+
+// ---------------------------------------------------------------------------
+// Cover-only detection — Google serves server-side fetchers a page with just
+// the og:image preview. Rendering that as "1 PHOTO" tells a family the trip
+// had one photo, which is worse than admitting we got nothing.
+// ---------------------------------------------------------------------------
+console.log("\nisCoverOnly / extractOgImage");
+
+const COVER = "https://lh3.googleusercontent.com/pw/AP1GczCoverCoverCover";
+
+test("reads og:image and strips its size suffix", () => {
+  const h = `<meta property="og:image" content="${COVER}=w468-h288-p-k">`;
+  assert.equal(extractOgImage(h), COVER);
+});
+
+test("flags a lone photo that is exactly the cover", () => {
+  assert.equal(isCoverOnly([{ url: COVER }], COVER), true);
+});
+
+test("does not flag a real album that happens to include the cover", () => {
+  const photos = [{ url: COVER }, { url: COVER + "2" }, { url: COVER + "3" }];
+  assert.equal(isCoverOnly(photos, COVER), false);
+});
+
+test("does not flag a lone photo that isn't the cover", () => {
+  assert.equal(isCoverOnly([{ url: COVER + "9" }], COVER), false);
+});
+
+test("is inert when there's no cover to compare against", () => {
+  assert.equal(isCoverOnly([{ url: COVER }], null), false);
+  assert.equal(isCoverOnly([], COVER), false);
 });
 
 console.log(`\n${passed} passed, exit ${process.exitCode || 0}`);
