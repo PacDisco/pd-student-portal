@@ -5,13 +5,18 @@
 // Important: payment_1..10 live on the *Deal*, not the Contact. The previous
 // implementation read those properties off the contact directly and got
 // `undefined` for every student, which meant every card showed
-// "TOTAL PAID: $0 / No payments recorded". This version walks contact →
-// associated Deals (most recently created), parses the leading numeric
-// value out of each deal payment_N string ("250, pi_xxx, 2026-03-12"), and
-// sums them.
+// "TOTAL PAID: $0 / No payments recorded".
+//
+// Deal selection: this used to take each student's most recently created
+// deal, which ignored the portal the instructor is actually looking at. A
+// student with a College Credit add-on (created after their program deal)
+// showed $1,950 as their program total on every roster, and a student
+// enrolled on two programs showed the other program's figures. Selection now
+// goes through _shared/deal.js, scored against THIS portal.
 
 import { authenticate, authError } from "./_shared/auth.js";
 import { proxyRef } from "./_shared/docref.js";
+import { fetchDealsForContact, buildEnrolments } from "./_shared/deal.js";
 
 export async function handler(event) {
   try {
@@ -122,11 +127,17 @@ export async function handler(event) {
     //    application form so each card can show a photo.
     const portraitsPromise = loadPortraitsByEmail();
 
+    // Program context for deal scoring: lets a student's deal be matched to
+    // THIS portal by name/tuition rather than falling back to recency. One
+    // extra read, shared across every student on the roster.
+    const programPromise = fetchProgramContext(portalId, OBJECT, headers);
+    const program = await programPromise;
+
     const studentsRaw = await Promise.all(
       (studentsData.results || []).map(async (student) => {
         const [parents, paymentInfo] = await Promise.all([
           fetchParents(student.id, headers),
-          fetchStudentPayments(student.id, headers)
+          fetchStudentPayments(student.id, headers, program)
         ]);
 
         return {
@@ -141,6 +152,11 @@ export async function handler(event) {
           totalPaid: paymentInfo.totalPaid,
           payments: paymentInfo.payments,
           dealAmount: paymentInfo.dealAmount,
+          dealName: paymentInfo.dealName,
+          addons: paymentInfo.addons,
+          // True when HubSpot wouldn't answer for this student — the card
+          // should say so rather than implying they have paid nothing.
+          dealsUnavailable: Boolean(paymentInfo.dealsUnavailable),
           parents
         };
       })
@@ -217,73 +233,43 @@ async function fetchParents(contactId, headers) {
   }));
 }
 
-// Returns the student's actual paid totals from their most recently created
-// associated Deal. Uses the same payment_N parsing pattern as get-paid-payments.js.
-async function fetchStudentPayments(contactId, headers) {
-  const empty = { totalPaid: 0, payments: [], dealAmount: null };
+// Returns the student's paid totals for the program deal that belongs to the
+// portal being viewed. Add-on deals (College Credit, Basecamp) are reported
+// separately rather than being mistaken for the program.
+async function fetchStudentPayments(contactId, headers, program = {}) {
+  const empty = { totalPaid: 0, payments: [], dealAmount: null, dealName: null, addons: [] };
 
-  // Find associated deals for the student
-  const dealAssocRes = await fetch(
-    `https://api.hubapi.com/crm/v4/objects/contacts/${contactId}/associations/deals`,
-    { headers }
-  );
-  if (!dealAssocRes.ok) return empty;
-
-  const dealAssocData = await dealAssocRes.json();
-  const dealIds = (dealAssocData.results || [])
-    .map(r => r.toObjectId)
-    .filter(Boolean);
-
-  if (dealIds.length === 0) return empty;
-
-  // Batch-read those deals — createdate to pick the most recent, plus all
-  // payment fields and the deal's amount for context.
-  const PAYMENT_FIELDS = [
-    "payment_1", "payment_2", "payment_3", "payment_4", "payment_5",
-    "payment_6", "payment_7", "payment_8", "payment_9", "payment_10"
-  ];
-
-  const dealsRes = await fetch(
-    "https://api.hubapi.com/crm/v3/objects/deals/batch/read",
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        inputs: dealIds.map(id => ({ id: String(id) })),
-        properties: ["dealname", "createdate", "amount", "total_amount_paid", ...PAYMENT_FIELDS]
-      })
-    }
-  );
-
-  if (!dealsRes.ok) return empty;
-
-  const dealsData = await dealsRes.json();
-  const deals = dealsData.results || [];
-  if (deals.length === 0) return empty;
-
-  // Pick most recently created
-  const sorted = deals.slice().sort((a, b) => {
-    const ta = new Date(a.properties?.createdate || 0).getTime();
-    const tb = new Date(b.properties?.createdate || 0).getTime();
-    return tb - ta;
-  });
-  const deal = sorted[0];
-
-  let totalPaid = 0;
-  const payments = [];
-  for (let i = 1; i <= 10; i++) {
-    const raw = deal.properties?.[`payment_${i}`];
-    const amount = extractPaymentAmount(raw);
-    if (amount != null && amount > 0) {
-      totalPaid += amount;
-      payments.push({ label: `Payment ${i}`, amount });
-    }
+  // fetchDealsForContact throws on a HubSpot read failure (so a 429 isn't
+  // silently rendered as "no deals"). On a roster that would take down every
+  // student, so contain it here and flag the one row instead.
+  let deals;
+  try {
+    ({ deals } = await fetchDealsForContact(contactId, headers));
+  } catch (err) {
+    console.warn(`[get-students] deal read failed for contact ${contactId}:`, err?.message || err);
+    return { ...empty, dealsUnavailable: true };
   }
+  if (!deals.length) return empty;
+
+  const { enrolments } = buildEnrolments(deals, program);
+  if (!enrolments.length) return empty;
+
+  // buildEnrolments sorts programs (best match for this portal first) ahead
+  // of add-ons, so the head of the list is the roster-relevant deal.
+  const selected = enrolments[0];
 
   return {
-    totalPaid: Math.round(totalPaid * 100) / 100,
-    payments,
-    dealAmount: deal.properties?.amount ? parseFloat(deal.properties.amount) : null
+    totalPaid: selected.totalPaid,
+    payments: selected.payments
+      .filter(p => p.amount != null && p.amount > 0)
+      .map(p => ({ label: `Payment ${p.index}`, amount: p.amount })),
+    dealAmount: selected.amount,
+    dealName: selected.name,
+    // Surfaced so an instructor can see a student also holds College Credit
+    // without it contaminating the program total.
+    addons: enrolments
+      .filter(e => e.kind === "addon")
+      .map(e => ({ name: e.name, amount: e.amount, totalPaid: e.totalPaid }))
   };
 }
 
@@ -373,22 +359,40 @@ async function loadPortraitsByEmail() {
   return out;
 }
 
-// Pulls the leading numeric value out of a deal's payment_N string, which is
-// stored in the loose "<amount>, <stripe_pi>, <date>" format on the Deal
-// object. Tolerates messy formats — strips any non-digit chars from the first
-// comma-separated token, returns null if nothing valid is left.
-function extractPaymentAmount(raw) {
-  if (!raw || typeof raw !== "string") return null;
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-  const first = trimmed.split(",")[0].trim();
-  // Keep digits, dots, minus; drop currency symbols, letters, etc.
-  const cleaned = first.replace(/[^0-9.\-]/g, "");
-  if (!cleaned || cleaned === "-" || cleaned === ".") return null;
-  const n = parseFloat(cleaned);
-  if (!isFinite(n) || n <= 0) return null;
-  return n;
+// Reads the Program record's name / tuition / start date so each student's
+// deals can be scored against the portal being viewed. Returns an empty
+// object on any failure — scoring then falls back to program-vs-add-on
+// classification, which is still better than picking by recency.
+async function fetchProgramContext(portalId, OBJECT, headers) {
+  try {
+    const qs = new URLSearchParams({
+      properties: "program_name,portal_title,program_tuition,price,program_start_date"
+    });
+    const res = await fetch(
+      `https://api.hubapi.com/crm/v3/objects/${OBJECT}/${portalId}?${qs.toString()}`,
+      { headers }
+    );
+    if (!res.ok) return { portalId: String(portalId) };
+    const data = await res.json();
+    const p = data.properties || {};
+    return {
+      portalId: String(portalId),
+      programName: p.program_name || p.portal_title || "",
+      programTuition: p.program_tuition || p.price || null,
+      programStartDate: p.program_start_date || null
+    };
+  } catch (err) {
+    console.warn("[get-students] program context fetch failed:", err?.message || err);
+    return { portalId: String(portalId) };
+  }
 }
+
+// (extractPaymentAmount removed — payment_N parsing now lives in
+// _shared/payments.js, which handles both the positional
+// "250, pi_xxx, 2026-03-12" format and the labelled "Amount - USD $250.00"
+// format found on 2025-era deals. The old version read only the first
+// comma-separated token, so a labelled entry yielded either null or the
+// fragment after a thousands separator.)
 
 // ============================================================
 // Access check: verify the calling email is an admin of any kind.

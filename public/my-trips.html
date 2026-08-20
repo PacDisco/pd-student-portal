@@ -125,7 +125,7 @@
   <button class="logout" type="button" onclick="logout()">LOG OUT</button>
 </header>
 <main>
-  <p class="intro">You\'re associated with more than one program. Pick a trip to view its portal. You can switch back to this list any time from the header on the trip page.</p>
+  <p class="intro">You&rsquo;re associated with more than one program. Pick a trip to view its portal. You can switch back to this list any time from the header on the trip page.</p>
   <div id="picker" class="loading">LOADING TRIPS…</div>
 </main>
 <script>
@@ -181,6 +181,7 @@
     sessionStorage.removeItem("adminRole");
     sessionStorage.removeItem("firstName");
     sessionStorage.removeItem("selectedPortalId");
+    sessionStorage.removeItem("selectedDealId");
     window.location.href = "/login.html";
   }
 
@@ -193,7 +194,14 @@
   }
 
   function pickPortal(id) {
-    try { sessionStorage.setItem("selectedPortalId", String(id)); } catch (_) {}
+    try {
+      sessionStorage.setItem("selectedPortalId", String(id));
+      // Picking a different trip invalidates the enrolment choice — the
+      // portal re-resolves the best matching deal for the new trip, and the
+      // student can switch again from the Payments tab if they hold more
+      // than one.
+      sessionStorage.removeItem("selectedDealId");
+    } catch (_) {}
     window.location.href = "/index.html";
   }
 

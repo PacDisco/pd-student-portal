@@ -13,7 +13,7 @@
 //     baseAmount:    1000.00,                     // listed installment amount
 //     chargeAmount:  1030.00,                     // total to charge for THIS method
 //                                                 //   (caller should pass base for direct debit,
-//                                                 //    base × 1.03 for card)
+//                                                 //    base × 1.035 for card)
 //     description:   "Costa Rica Mini Semester — Payment 3", // optional
 //     paymentType:   "card" | "direct_debit"      // optional, defaults to "card".
 //                                                 //   "card"          → payment_method_types: ["card"]
@@ -45,6 +45,7 @@
 //                                    acss_debit       → CAD
 
 import { authenticate, authError } from "./_shared/auth.js";
+import { resolveEnrolmentsForEmail } from "./_shared/deal.js";
 
 export async function handler(event) {
   try {
@@ -85,6 +86,7 @@ export async function handler(event) {
       baseAmount,
       chargeAmount,
       description,
+      dealId: requestedDealId,
       paymentType: rawPaymentType
     } = body;
     // The payer is always the authenticated user; ignore any body-supplied email.
@@ -97,6 +99,26 @@ export async function handler(event) {
     // Normalise paymentType. Anything other than "direct_debit" is treated
     // as a card payment to keep the original behaviour as the safe default.
     const paymentType = rawPaymentType === "direct_debit" ? "direct_debit" : "card";
+
+    // Resolve which enrolment this payment is for, so the Stripe charge can
+    // be reconciled against the right HubSpot deal. Without this, a student
+    // with a program deal AND a College Credit deal produces charges that
+    // whatever writes payment_N back cannot attribute — the money can land
+    // on the wrong deal entirely.
+    //
+    // The client's dealId is a hint: resolveEnrolmentsForEmail only honours
+    // it if it is in this contact's own association list. A failure here is
+    // not fatal — we would rather take the payment with weaker metadata than
+    // block a student from paying.
+    let selectedDeal = null;
+    if (process.env.HUBSPOT_API_KEY) {
+      try {
+        const resolved = await resolveEnrolmentsForEmail(email, { requestedDealId });
+        selectedDeal = resolved.selected;
+      } catch (err) {
+        console.warn("[create-checkout-session] deal resolution failed:", err?.message || err);
+      }
+    }
 
     // Resolve which Stripe payment_method_types we'll offer at checkout.
     // For card it's a single fixed list. For direct debit we read from the
@@ -197,7 +219,24 @@ export async function handler(event) {
     // and let the receiving system (HubSpot Stripe sync, dashboard
     // filters, etc.) decide what to do with it.
     params.append("metadata[payment_type]", paymentType);
-    params.append("metadata[processing_fee_rate]", paymentType === "card" ? "0.03" : "0");
+    // Must match the rate the portal actually applies when computing
+    // chargeAmount (SURCHARGE_RATE in the payments tab). It read 0.03 while
+    // the client charged 3.5%, so anything reconciling
+    // charge_amount == base_amount x (1 + processing_fee_rate) was off by
+    // half a percent — $11,845.00 expected against $11,902.50 charged.
+    params.append("metadata[processing_fee_rate]", paymentType === "card" ? "0.035" : "0");
+    // Which HubSpot deal this payment belongs to. `deal_id_source` records
+    // whether the student explicitly chose it in the portal switcher or the
+    // server inferred it, so a mis-attributed payment can be traced.
+    if (selectedDeal) {
+      params.append("metadata[deal_id]", String(selectedDeal.id));
+      params.append("metadata[deal_name]", String(selectedDeal.name || "").slice(0, 400));
+      params.append("metadata[deal_kind]", selectedDeal.kind);
+      params.append(
+        "metadata[deal_id_source]",
+        requestedDealId && String(requestedDealId) === selectedDeal.id ? "student_selected" : "server_resolved"
+      );
+    }
     params.append("metadata[source]", "pd-student-portal-row-click");
 
     // Mirror metadata onto the PaymentIntent so it shows on the underlying

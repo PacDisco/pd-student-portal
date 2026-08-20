@@ -1,5 +1,5 @@
-// Returns the documents checklist for a contact's most-recent associated
-// Deal, used by the Document Uploads tab on the portal.
+// Returns the documents checklist for ONE of the logged-in student's
+// enrolments, used by the Document Uploads tab on the portal.
 //
 // Reads a single multi-checkbox property on the Deal — internal name
 // `document_submissions` by default (override with the
@@ -8,25 +8,43 @@
 // HubSpot Settings) is the universe of possible required documents. The
 // current value on the deal is the subset that's *still pending*.
 //
+// Which deal that is used to be "whichever was created most recently",
+// which for a student with a College Credit add-on meant reading an empty
+// property off the add-on and reporting every document as complete. Deal
+// selection now comes from _shared/deal.js, and the student can switch with
+// `?dealId=` — validated against their own associations.
+//
 // Response shape:
 //   {
 //     options: [<every possible document label>],
 //     pending: [<docs currently listed on the deal — still needed>],
 //     completed: [<options that are NOT on the deal — done>],
-//     dealId: "<id>" | null
+//     checklistState: "empty" | "partial",
+//     dealId, dealName, dealKind,
+//     enrolments: [...]
 //   }
+//
+// `checklistState` exists because an empty property is ambiguous: it means
+// either "everything is submitted" or "nobody has filled this in yet". The
+// UI words the two cases differently rather than congratulating a student
+// who has submitted nothing.
 //
 // We filter out the literal value "Bio complete" everywhere — it's an
 // admin-only marker that shouldn't be shown to students.
 //
 // Required env var: HUBSPOT_API_KEY
-// Optional env var: DOCUMENTS_NEEDED_PROPERTY — override internal name
-//                   if HubSpot uses something other than "document_submissions".
 
-const PROPERTY_NAME = process.env.DOCUMENTS_NEEDED_PROPERTY || "document_submissions";
 const IGNORED_VALUES = new Set(["bio complete"]); // case-insensitive
 
 import { authenticate, authError } from "./_shared/auth.js";
+import {
+  resolveEnrolmentsForEmail,
+  toClientEnrolment,
+  hubspotHeaders,
+  DOCUMENTS_NEEDED_PROPERTY as PROPERTY_NAME
+} from "./_shared/deal.js";
+
+const EMPTY = { options: [], pending: [], completed: [], checklistState: "empty", dealId: null, enrolments: [] };
 
 export async function handler(event) {
   try {
@@ -36,115 +54,88 @@ export async function handler(event) {
       return jsonResponse(500, { error: "HUBSPOT_API_KEY not configured" });
     }
 
-    const cleanEmail = identity.email;
-    const headers = {
-      Authorization: `Bearer ${process.env.HUBSPOT_API_KEY}`,
-      "Content-Type": "application/json"
-    };
+    const params = event.queryStringParameters || {};
+    const headers = hubspotHeaders();
 
-    // 1. Find contact by email
-    const contactRes = await fetch(
-      "https://api.hubapi.com/crm/v3/objects/contacts/search",
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          filterGroups: [{
-            filters: [{ propertyName: "email", operator: "EQ", value: cleanEmail }]
-          }]
-        })
-      }
-    );
-    if (!contactRes.ok) {
-      return jsonResponse(502, {
-        error: "Contact lookup failed",
-        details: `HubSpot ${contactRes.status}`
+    let resolved;
+    try {
+      resolved = await resolveEnrolmentsForEmail(identity.email, {
+        requestedDealId: params.dealId,
+        program: {
+          portalId: params.portalId,
+          programName: params.programName,
+          programTuition: params.programTuition
+        },
+        headers
       });
-    }
-    const contactData = await contactRes.json();
-    const contactId = contactData.results?.[0]?.id;
-    if (!contactId) {
-      return jsonResponse(200, { options: [], pending: [], completed: [], dealId: null });
+    } catch (err) {
+      return jsonResponse(502, { error: err.message, details: err.details });
     }
 
-    // 2. List associated deals
-    const assocRes = await fetch(
-      `https://api.hubapi.com/crm/v4/objects/contacts/${contactId}/associations/deals`,
-      { headers }
-    );
-    if (!assocRes.ok) {
-      return jsonResponse(200, { options: [], pending: [], completed: [], dealId: null });
-    }
-    const assocData = await assocRes.json();
-    const dealIds = (assocData.results || []).map(r => r.toObjectId).filter(Boolean);
-    if (dealIds.length === 0) {
-      return jsonResponse(200, { options: [], pending: [], completed: [], dealId: null });
-    }
+    const { enrolments, selected } = resolved;
+    if (!resolved.contactId || !selected) return jsonResponse(200, EMPTY);
 
-    // 3. Batch-read the deals to find the most-recent one + read the
-    //    documents-needed property's current value on it.
-    const dealsRes = await fetch(
-      "https://api.hubapi.com/crm/v3/objects/deals/batch/read",
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          inputs: dealIds.map(id => ({ id: String(id) })),
-          properties: ["createdate", PROPERTY_NAME]
-        })
-      }
-    );
-    if (!dealsRes.ok) {
-      return jsonResponse(502, {
-        error: "Deal batch-read failed",
-        details: `HubSpot ${dealsRes.status}`
-      });
-    }
-    const dealsData = await dealsRes.json();
-    const deals = (dealsData.results || []).slice().sort((a, b) => {
-      const ta = new Date(a.properties?.createdate || 0).getTime();
-      const tb = new Date(b.properties?.createdate || 0).getTime();
-      return tb - ta;
-    });
-    const deal = deals[0];
-
-    // HubSpot multi-checkbox values come back as a semicolon-separated
-    // string. Split, trim, drop empties + ignored values.
-    const rawCurrent = (deal?.properties?.[PROPERTY_NAME] || "").trim();
-    const pending = rawCurrent
+    // HubSpot multi-checkbox values come back as a semicolon-separated string
+    // of the option *values*. Split, trim, drop empties + ignored values.
+    const rawCurrent = selected.documentsNeededRaw;
+    const pendingValues = rawCurrent
       .split(";")
       .map(s => s.trim())
       .filter(s => s && !IGNORED_VALUES.has(s.toLowerCase()));
 
-    // 4. Fetch the property definition to get the master list of options
-    //    so we can compute "completed" = options - pending.
+    // Fetch the property definition for the master list of options, so we can
+    // compute "completed" = options - pending.
+    //
+    // Values and labels are NOT interchangeable on this property: in the live
+    // portal, value "Waiver" has label "Permissions Packet & Waiver Signed",
+    // and "Medical Form (if needed)" has label "Medical History Form (If
+    // needed)". Comparing the deal's stored values against option labels
+    // therefore ticked off documents the student still owed AND listed the
+    // same document again as pending. Match on value, display the label.
     const propRes = await fetch(
       `https://api.hubapi.com/crm/v3/properties/deals/${encodeURIComponent(PROPERTY_NAME)}`,
       { headers }
     );
 
-    let options = [];
+    let optionDefs = [];
     if (propRes.ok) {
       const propData = await propRes.json();
-      options = (propData.options || [])
-        .map(o => (o && (o.label || o.value)) || "")
-        .filter(Boolean)
-        .filter(v => !IGNORED_VALUES.has(v.toLowerCase()));
+      optionDefs = (propData.options || [])
+        .map(o => ({
+          value: String((o && o.value) ?? ""),
+          label: String((o && (o.label || o.value)) ?? "")
+        }))
+        .filter(o => o.value || o.label)
+        .filter(o => !IGNORED_VALUES.has(o.value.toLowerCase())
+                  && !IGNORED_VALUES.has(o.label.toLowerCase()));
     } else {
-      // Couldn't read the property definition — fall back to showing
-      // just the pending list (no "completed" items rendered).
+      // Couldn't read the property definition — fall back to showing just the
+      // pending list (no "completed" items rendered).
       console.warn(`[get-document-checklist] property fetch failed: ${propRes.status}`);
     }
 
-    // Set-based diff so we don't depend on exact array order.
-    const pendingSet = new Set(pending.map(v => v.toLowerCase()));
-    const completed = options.filter(o => !pendingSet.has(o.toLowerCase()));
+    const labelForValue = new Map(optionDefs.map(o => [o.value.toLowerCase(), o.label]));
+    const options = optionDefs.map(o => o.label);
+
+    // Display labels, matched by value. A value with no matching option
+    // definition still shows — better a raw value than a silently dropped
+    // requirement.
+    const pending = pendingValues.map(v => labelForValue.get(v.toLowerCase()) || v);
+
+    const pendingValueSet = new Set(pendingValues.map(v => v.toLowerCase()));
+    const completed = optionDefs
+      .filter(o => !pendingValueSet.has(o.value.toLowerCase()))
+      .map(o => o.label);
 
     return jsonResponse(200, {
       options,
       pending,
       completed,
-      dealId: deal?.id || null
+      checklistState: rawCurrent ? "partial" : "empty",
+      dealId: selected.id,
+      dealName: selected.name,
+      dealKind: selected.kind,
+      enrolments: enrolments.map(e => toClientEnrolment(e, selected.id))
     });
 
   } catch (err) {

@@ -1156,6 +1156,48 @@
       margin-bottom: 24px;
     }
 
+    /* ----- Enrolment switcher -----
+       Only rendered for a student holding more than one deal (a program plus
+       a College Credit / Basecamp add-on, or two programs). Sits above the
+       Payments summary and the Document Uploads checklist — the two panels
+       scoped to a single enrolment. */
+    .enrolment-switcher {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-left: 4px solid #55BBD2;
+      padding: 14px 18px;
+      margin: 0 0 22px;
+      max-width: 720px;
+    }
+    .enrolment-switcher-label {
+      display: block;
+      font-size: 10px;
+      letter-spacing: 1.4px;
+      color: #6b7280;
+      margin-bottom: 8px;
+    }
+    .enrolment-switcher-select {
+      width: 100%;
+      max-width: 460px;
+      padding: 9px 12px;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      color: #111;
+      background: #fff;
+      border: 1px solid #d1d5db;
+      cursor: pointer;
+    }
+    .enrolment-switcher-select:focus {
+      outline: 2px solid #55BBD2;
+      outline-offset: 1px;
+    }
+    .enrolment-switcher-hint {
+      margin-top: 8px;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #6b7280;
+    }
+
     /* ----- New Deal-driven payments view ----- */
     .payment-summary {
       background: #f8f8f8;
@@ -2328,6 +2370,89 @@
   const email = sessionStorage.getItem("portalEmail");
   if (!email) window.location.href = "/login.html";
 
+  // ----- Enrolment (deal) selection -----
+  // A student can hold more than one HubSpot deal: a program deal plus a
+  // College Credit / Basecamp add-on, or two programs in different
+  // semesters. The Payments and Document Uploads tabs are scoped to ONE of
+  // them; everything else (itinerary, flights, manuals, message board) stays
+  // on the program, because an add-on deal has no trip content of its own.
+  //
+  // `selectedDealId` is the student's choice, persisted for the session.
+  // Null means "let the server pick" — it prefers the program deal matching
+  // the trip being viewed, never simply the most recently created one.
+  let selectedDealId = sessionStorage.getItem("selectedDealId") || null;
+  let enrolments = [];
+  // Which tab is open, so the switcher can re-render in place instead of
+  // bouncing the student back to Payments.
+  let currentSection = null;
+
+  // Query string for the two deal-scoped endpoints: the current selection
+  // plus the program hints the server uses to rank a student's deals against
+  // this trip. The hints only affect ranking — they can never widen what the
+  // caller is allowed to see, which is fixed by the session token.
+  function enrolmentQuery() {
+    const p = new URLSearchParams();
+    if (selectedDealId) p.set("dealId", selectedDealId);
+    // portalData is populated during init(); every caller of this runs after
+    // that, so reading it directly is safe.
+    const pd = portalData || {};
+    if (pd.hs_object_id) p.set("portalId", pd.hs_object_id);
+    const name = pd.program_name || pd.portal_title || "";
+    if (name) p.set("programName", name);
+    const tuition = pd.program_tuition || pd.price || "";
+    if (tuition) p.set("programTuition", tuition);
+    return p.toString();
+  }
+
+  // Records the enrolment list returned by whichever endpoint answered, and
+  // keeps `selectedDealId` in step with the deal the server actually used —
+  // it may have overridden a stale id left over from another trip.
+  function noteEnrolments(payload) {
+    if (!payload || !Array.isArray(payload.enrolments)) return;
+    enrolments = payload.enrolments;
+    if (payload.dealId && String(payload.dealId) !== selectedDealId) {
+      selectedDealId = String(payload.dealId);
+      try { sessionStorage.setItem("selectedDealId", selectedDealId); } catch (_) {}
+    }
+  }
+
+  // Renders nothing for the single-enrolment case, so the overwhelming
+  // majority of students see no change at all.
+  function renderEnrolmentSwitcher() {
+    if (!Array.isArray(enrolments) || enrolments.length < 2) return "";
+    const options = enrolments.map(e => {
+      const paid = (e.totalPaid != null && e.totalPaid > 0)
+        ? ` — ${paymentsFmtMoney(e.totalPaid)} paid`
+        : "";
+      const kind = e.kind === "addon" ? " (add-on)" : "";
+      return `<option value="${attrEsc(e.id)}"${e.selected ? " selected" : ""}>` +
+             `${attrEsc(e.label || e.name)}${kind}${paid}</option>`;
+    }).join("");
+    return `
+      <div class="enrolment-switcher">
+        <label class="enrolment-switcher-label" for="enrolmentSelect">PAYMENTS &amp; DOCUMENTS FOR</label>
+        <select id="enrolmentSelect" class="enrolment-switcher-select"
+                onchange="switchEnrolment(this.value)">${options}</select>
+        <div class="enrolment-switcher-hint">
+          You have more than one enrolment. Trip information elsewhere in the portal is the same for all of them.
+        </div>
+      </div>`;
+  }
+
+  function switchEnrolment(dealId) {
+    const next = String(dealId || "");
+    if (!next || next === selectedDealId) return;
+    selectedDealId = next;
+    try { sessionStorage.setItem("selectedDealId", next); } catch (_) {}
+    // Re-render whichever deal-scoped tab is open. The switcher is only ever
+    // visible from those two, so the fallback is just belt and braces.
+    loadSection(
+      currentSection === "family_information_content"
+        ? "family_information_content"
+        : "travel_information_content"
+    );
+  }
+
   // ----- Admin viewing mode -----
   // Admins land on /admin.html after login, then click a trip to view. We
   // get back here with two query params: portalId (the Portal record they
@@ -3136,6 +3261,11 @@
         baseAmount: el.dataset.baseAmount ? parseFloat(el.dataset.baseAmount) : null,
         chargeAmount: el.dataset.chargeAmount ? parseFloat(el.dataset.chargeAmount) : null,
         description: el.dataset.description || "",
+        // Which enrolment this payment is against. The server validates it
+        // against the contact's own deals before trusting it, and stamps it
+        // into the Stripe session metadata so the charge can be reconciled to
+        // the right HubSpot deal.
+        dealId: el.dataset.dealId || selectedDealId || null,
         // "card" (default, +3% fee) or "direct_debit" (no fee). Comes from
         // the data-payment-type attribute set on the per-row link.
         paymentType: el.dataset.paymentType || "card"
@@ -3655,7 +3785,7 @@
     // Pull paid payments + deal metadata. The endpoint already returns
     // dealAmount (Deal's standard `amount` field) plus a parsed array of
     // payment entries from payment_1..10. Summing those gives total paid.
-    const paidPromise = fetch(`/.netlify/functions/get-paid-payments?email=${encodeURIComponent(email)}`)
+    const paidPromise = fetch(`/.netlify/functions/get-paid-payments?${enrolmentQuery()}`)
       .then(r => r.json())
       .catch(err => { console.error("Paid payments fetch error:", err); return { payments: [], dealAmount: null }; });
 
@@ -3665,19 +3795,24 @@
 
     const paidData = await paidPromise;
     const payments = Array.isArray(paidData?.payments) ? paidData.payments : [];
+    noteEnrolments(paidData);
 
-    // Sum the parsed payment amounts → total paid. Fall back to the Deal's
-    // total_amount_paid property if no parseable payments are returned (e.g.
-    // the user is on a fresh deal where Stripe hasn't pushed anything yet).
-    let totalPaid = payments.reduce((acc, e) => acc + (parseFloat(e.amount) || 0), 0);
-    if (!totalPaid && paidData?.totalAmountPaid != null) {
-      const fallback = parseFloat(paidData.totalAmountPaid);
-      if (isFinite(fallback)) totalPaid = fallback;
-    }
-
+    // The server now owns this arithmetic: it parses payment_1..10 (in either
+    // of the two formats that exist in HubSpot), sums them, and falls back to
+    // the Deal's own total_amount_paid — preferring whichever is higher, so a
+    // schedule row nobody could parse can't understate what a student has
+    // paid. Recomputing it here risked the two disagreeing.
+    const totalPaid  = parseFloat(paidData?.totalPaid) || 0;
     const dealAmount = parseFloat(paidData?.dealAmount) || 0;
-    const amountDue  = Math.max(0, dealAmount - totalPaid);
-    const tripName   = portalData.program_name || portalData.portal_title || portalData.destination || "Pacific Discovery";
+    const amountDue  = paidData?.amountDue != null
+      ? (parseFloat(paidData.amountDue) || 0)
+      : Math.max(0, dealAmount - totalPaid);
+
+    // Name the enrolment the figures belong to. For a student with a single
+    // deal this reads the same as before.
+    const tripName = paidData?.dealName
+      || portalData.program_name || portalData.portal_title || portalData.destination || "Pacific Discovery";
+    const switcherHtml = renderEnrolmentSwitcher();
 
     // ---- Tier logic ----
     // The orange "PAY NOW" button in the AMOUNT DUE summary already covers
@@ -3687,14 +3822,24 @@
     // < $250 paid        → APP FEE ($250), DEPOSIT ($2,250)      [side by side]
     // $250–$2,499 paid   → DEPOSIT remaining (to $2,500)         [single, right-aligned]
     // ≥ $2,500 paid      → no tier buttons (PAY NOW alone handles it)
+    //
+    // Only a program enrolment has an application fee and a deposit. An
+    // add-on (College Credit, Basecamp) is a single charge, and a program
+    // priced at or below the deposit threshold has nothing to stage — in both
+    // cases the tier buttons are suppressed, otherwise a student who has paid
+    // their $1,950 college credit in full gets asked for a "remaining
+    // deposit". The AMOUNT DUE row below still offers any real balance.
+    const isProgramEnrolment = (paidData?.dealKind || "program") === "program";
     const buttons = [];
-    if (totalPaid < APP_FEE) {
-      buttons.push({ label: "PAY APPLICATION FEE", base: APP_FEE, desc: "Application Fee" });
-      buttons.push({ label: "PAY DEPOSIT",         base: DEPOSIT_TOTAL - APP_FEE, desc: "Deposit" });
-    } else if (totalPaid < DEPOSIT_TOTAL) {
-      const depositRemaining = DEPOSIT_TOTAL - totalPaid;
-      if (depositRemaining > 0) {
-        buttons.push({ label: "PAY REMAINING DEPOSIT", base: depositRemaining, desc: "Remaining Deposit" });
+    if (isProgramEnrolment && dealAmount > DEPOSIT_TOTAL) {
+      if (totalPaid < APP_FEE) {
+        buttons.push({ label: "PAY APPLICATION FEE", base: APP_FEE, desc: "Application Fee" });
+        buttons.push({ label: "PAY DEPOSIT",         base: DEPOSIT_TOTAL - APP_FEE, desc: "Deposit" });
+      } else if (totalPaid < DEPOSIT_TOTAL) {
+        const depositRemaining = DEPOSIT_TOTAL - totalPaid;
+        if (depositRemaining > 0) {
+          buttons.push({ label: "PAY REMAINING DEPOSIT", base: depositRemaining, desc: "Remaining Deposit" });
+        }
       }
     }
     // tier 3 (≥ $2,500 paid) intentionally renders no tier buttons.
@@ -3709,6 +3854,7 @@
         data-charge-amount="${charge}"
         data-description="${attrEsc(`${tripName} — ${b.desc}`)}"
         data-payment-type="card"
+        data-deal-id="${attrEsc(paidData?.dealId || "")}"
         onclick="return startCheckout(event, this);">
         <span class="payment-action-label">${b.label}</span>
         <span class="payment-action-amount">${paymentsFmtMoney(charge)}<span class="payment-action-base"> (${paymentsFmtMoney(b.base)} + 3.5% fee)</span></span>
@@ -3723,7 +3869,7 @@
     const summaryHtml = `
       <div class="payment-summary">
         <div class="payment-summary-row">
-          <div class="payment-summary-label">PROGRAM TOTAL</div>
+          <div class="payment-summary-label">${isProgramEnrolment ? "PROGRAM TOTAL" : "TOTAL"}</div>
           <div class="payment-summary-value">${dealAmount > 0 ? paymentsFmtMoney(dealAmount) : '<span class="tbc">TBC</span>'}</div>
         </div>
         <div class="payment-summary-row">
@@ -3738,6 +3884,7 @@
                   data-charge-amount="${dueChargeAmount}"
                   data-description="${attrEsc(`${tripName} — Amount Due`)}"
                   data-payment-type="card"
+                  data-deal-id="${attrEsc(paidData?.dealId || "")}"
                   onclick="return startCheckout(event, this);"
                   title="Pay the full outstanding balance (includes 3.5% processing fee)">
                   ${paymentsFmtMoney(amountDue)}
@@ -3783,15 +3930,25 @@
       const historyRows = payments
         .slice()
         .sort((a, b) => {
-          const da = a.dateIso ? new Date(a.dateIso).getTime() : 0;
-          const db = b.dateIso ? new Date(b.dateIso).getTime() : 0;
-          return db - da; // most recent first
+          // Most recent first. Entries in the older labelled format carry no
+          // date at all, so fall back to schedule order (payment_1 first)
+          // rather than leaving them in arbitrary order under a
+          // "most recent first" header.
+          const da = a.dateIso ? new Date(a.dateIso).getTime() : null;
+          const db = b.dateIso ? new Date(b.dateIso).getTime() : null;
+          if (da != null && db != null) return db - da;
+          if (da != null) return -1;
+          if (db != null) return 1;
+          return (b.index || 0) - (a.index || 0);
         })
         .map(p => {
           const dateStr = p.dateIso
             ? new Date(p.dateIso).toLocaleDateString("en-NZ", { year: "numeric", month: "short", day: "numeric" })
-            : (p.dateRaw || "—");
-          const txn = p.stripePaymentIntent || "—";
+            : "—";
+          // Prefer the Stripe payment intent, then any other reference the
+          // row carries — a bank transaction id, or the payer's name on a
+          // manually-entered row.
+          const txn = p.stripePaymentIntent || p.reference || "—";
           const amt = p.amount != null ? paymentsFmtMoney(p.amount) : "—";
           return `<div class="payment-history-row">
             <div class="payment-history-amount">${amt}</div>
@@ -3821,6 +3978,7 @@
     const actionsHtml = buttonHtml ? `<div class="${actionsClass}">${buttonHtml}</div>` : "";
 
     return `
+      ${switcherHtml}
       ${infoHtml}
       ${summaryHtml}
       ${actionsHtml}
@@ -3847,10 +4005,13 @@
     btn.dataset.chargeAmount = String(charge);
     btn.dataset.description  = `${tripName} — Custom Payment`;
     btn.dataset.paymentType  = "card";
+    // Attribute the charge to the enrolment currently being viewed.
+    if (selectedDealId) btn.dataset.dealId = selectedDealId;
     return startCheckout(event, btn);
   }
 
   function loadSection(field) {
+    currentSection = field;
     setActiveTile(field);
 
     const content = document.getElementById("content");
@@ -4018,7 +4179,7 @@
     // Checklist from deal.documents_needed — fetched in parallel with
     // the rest below. Always renders at the top of the tab when there's
     // at least one item (either pending or completed) to show.
-    const checklistPromise = fetch(`/.netlify/functions/get-document-checklist?email=${encodeURIComponent(email)}`)
+    const checklistPromise = fetch(`/.netlify/functions/get-document-checklist?${enrolmentQuery()}`)
       .then(r => r.json())
       .catch(err => { console.error("Documents checklist fetch error:", err); return { pending: [], completed: [], options: [] }; });
 
@@ -4069,11 +4230,16 @@
     // Build a checked/unchecked list with completed items first (visual
     // progress), pending items below. Both halves filter out empty values.
     const checklist = await checklistPromise;
+    noteEnrolments(checklist);
     const pendingItems   = Array.isArray(checklist?.pending)   ? checklist.pending   : [];
     const completedItems = Array.isArray(checklist?.completed) ? checklist.completed : [];
+    // An empty documents_needed property is ambiguous: it means either
+    // "everything is in" or "nobody has filled this in yet". Only the first
+    // deserves a congratulatory message.
+    const checklistEmpty = checklist?.checklistState === "empty";
 
     // 3. Build the page.
-    let html = "";
+    let html = renderEnrolmentSwitcher();
 
     // a. Documents checklist (top of page) — only renders if we have at
     //    least one item from either bucket.
@@ -4089,7 +4255,9 @@
         <div class="docs-section-label">DOCUMENT CHECKLIST</div>
         <ul class="doc-checklist">${completedHtml}${pendingHtml}</ul>
         ${pendingItems.length === 0
-          ? `<div class="doc-checklist-allgood">All documents submitted &mdash; thank you!</div>`
+          ? (checklistEmpty
+              ? `<div class="doc-checklist-hint">No outstanding documents are recorded for this enrolment. If you have been asked for something that isn't listed here, please contact us.</div>`
+              : `<div class="doc-checklist-allgood">All documents submitted &mdash; thank you!</div>`)
           : `<div class="doc-checklist-hint">${pendingItems.length} document${pendingItems.length === 1 ? '' : 's'} still to upload below.</div>`}
       </div>`;
     }
@@ -4553,9 +4721,20 @@
             </div>`
           : "";
 
+        // `dealsUnavailable` means HubSpot wouldn't answer for this student,
+        // not that they have paid nothing — say so rather than showing a
+        // confident $0. `addons` lists any College Credit / Basecamp deal, kept
+        // out of the program total but worth seeing on the card.
+        // Rendered as the same chips as the program payments, prefixed with
+        // the add-on's name so it reads as a separate line item.
+        const addonHtml = (student.addons || [])
+          .map(a => `<span>${attrEsc(a.name)}: USD $${(a.totalPaid || 0).toLocaleString()}</span>`)
+          .join("");
         const paymentsBlock = showPayments
-          ? `<div class="paid-badge">TOTAL PAID: USD $${student.totalPaid.toLocaleString()}</div>
-             <div class="payments-list">${paymentsHtml}</div>`
+          ? (student.dealsUnavailable
+              ? `<div class="paid-badge">TOTAL PAID: unavailable &mdash; could not read this student&rsquo;s deals</div>`
+              : `<div class="paid-badge">TOTAL PAID: USD $${student.totalPaid.toLocaleString()}</div>
+                 <div class="payments-list">${paymentsHtml}${addonHtml}</div>`)
           : "";
 
         // Teachers tab only: surface the school's per-student tracking
@@ -5405,6 +5584,10 @@
     sessionStorage.removeItem("portalEmail");
     sessionStorage.removeItem("adminRole");
     sessionStorage.removeItem("firstName");
+    // Clear the trip + enrolment choices so the next sign-in on this browser
+    // starts from a clean pick rather than inheriting the previous user's.
+    sessionStorage.removeItem("selectedPortalId");
+    sessionStorage.removeItem("selectedDealId");
     window.location.href = "/login.html";
   }
 

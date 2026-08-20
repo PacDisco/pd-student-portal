@@ -1,245 +1,114 @@
-// Returns the parsed payment_1..10 fields off the most recently created Deal
-// associated with the given contact email, so the portal can mark scheduled
-// installments as paid by sequence (deal.payment_N → schedule row N).
+// Returns the payment schedule for ONE of the logged-in student's
+// enrolments, plus the list of every enrolment they can switch between.
 //
-// Each Deal `payment_N` property is a free-form string roughly of the shape
-//   "<amount>, <stripe_payment_intent>, <date>"
-// but in practice the format is inconsistent — Stripe PIs are sometimes empty,
-// dates appear as "2026-03-12", "27 March 2026", "22.2.26", etc., and commas
-// are occasionally misplaced. The parser below pulls out whatever it can.
+// A contact often has more than one Deal — a program deal plus a College
+// Credit or Basecamp add-on, or two programs in different semesters. This
+// endpoint used to take whichever deal was created most recently, which is
+// usually the add-on, so a student who had paid their program in full saw
+// the add-on's $1,950 as their program total and was offered a deposit
+// button. Deal selection now lives in _shared/deal.js and the student
+// chooses via `?dealId=`.
+//
+// Inputs (querystring, all optional):
+//   dealId          — the enrolment to render. Validated against the
+//                     contact's own deal associations before it is honoured.
+//   programName     — program_name from the Program record being viewed.
+//   programTuition  — program_tuition, likewise.
+//   portalId        — Program record id, matched against the deal's
+//                     portal_program_id when that property is populated.
+//                     These three are ranking hints only; they never widen
+//                     what the caller is allowed to see.
+//
+// Returns:
+//   {
+//     dealId, dealName, dealKind,
+//     dealAmount,            // the deal's `amount` — the program total
+//     totalAmountPaid,       // the deal's own total_amount_paid, if set
+//     totalPaid,             // parsed sum, with total_amount_paid fallback
+//     totalPaidSource,       // "payments" | "total_amount_paid" | "none"
+//     payments: [...],       // parsed payment_1..10, in schedule order
+//     enrolments: [...]      // for the switcher
+//   }
+//
+// The payment_N parsing itself lives in _shared/payments.js, which handles
+// both production formats (see the note at the top of that file).
 
 import { authenticate, authError } from "./_shared/auth.js";
+import { resolveEnrolmentsForEmail, toClientEnrolment } from "./_shared/deal.js";
+
+const json = (statusCode, payload) => ({
+  statusCode,
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(payload)
+});
 
 export async function handler(event) {
   try {
     // Email from the verified token — a user only sees their own payments.
     let identity;
     try { identity = await authenticate(event); } catch (e) { return authError(e); }
-    const cleanEmail = identity.email;
 
-    const headers = {
-      Authorization: `Bearer ${process.env.HUBSPOT_API_KEY}`,
-      "Content-Type": "application/json"
-    };
-
-    // 1. Find contact by email
-    const contactRes = await fetch(
-      "https://api.hubapi.com/crm/v3/objects/contacts/search",
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          filterGroups: [{
-            filters: [{
-              propertyName: "email",
-              operator: "EQ",
-              value: cleanEmail
-            }]
-          }]
-        })
-      }
-    );
-
-    if (!contactRes.ok) {
-      return {
-        statusCode: 500,
-        body: JSON.stringify({
-          error: "Contact fetch failed",
-          details: await contactRes.text()
-        })
-      };
+    if (!process.env.HUBSPOT_API_KEY) {
+      return json(500, { error: "HUBSPOT_API_KEY is not set" });
     }
 
-    const contactData = await contactRes.json();
-    const contactId = contactData.results?.[0]?.id;
-    if (!contactId) {
-      return {
-        statusCode: 404,
-        body: JSON.stringify({ error: "Contact not found" })
-      };
+    const params = event.queryStringParameters || {};
+
+    let resolved;
+    try {
+      resolved = await resolveEnrolmentsForEmail(identity.email, {
+        requestedDealId: params.dealId,
+        program: {
+          portalId: params.portalId,
+          programName: params.programName,
+          programTuition: params.programTuition
+        }
+      });
+    } catch (err) {
+      return json(502, { error: err.message, details: err.details });
     }
 
-    // 2. List all deals associated to the contact
-    const assocRes = await fetch(
-      `https://api.hubapi.com/crm/v4/objects/contacts/${contactId}/associations/deals`,
-      { headers }
-    );
-
-    if (!assocRes.ok) {
-      return {
-        statusCode: 200,
-        body: JSON.stringify({ payments: [], reason: "No deal associations" })
-      };
+    if (!resolved.contactId) {
+      return json(404, { error: "Contact not found" });
     }
 
-    const assocData = await assocRes.json();
-    const dealIds = (assocData.results || []).map(r => r.toObjectId).filter(Boolean);
-
-    if (dealIds.length === 0) {
-      return {
-        statusCode: 200,
-        body: JSON.stringify({ payments: [], reason: "Contact has no deals" })
-      };
+    const { enrolments, selected } = resolved;
+    if (!selected) {
+      return json(200, {
+        payments: [],
+        enrolments: [],
+        reason: "Contact has no deals"
+      });
     }
 
-    // 3. Batch-read deals — pulling createdate so we can pick the most recent one
-    const PAYMENT_FIELDS = [
-      "payment_1", "payment_2", "payment_3", "payment_4", "payment_5",
-      "payment_6", "payment_7", "payment_8", "payment_9", "payment_10"
-    ];
-
-    const dealsRes = await fetch(
-      "https://api.hubapi.com/crm/v3/objects/deals/batch/read",
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          inputs: dealIds.map(id => ({ id: String(id) })),
-          properties: [
-            "dealname", "createdate", "amount", "total_amount_paid",
-            ...PAYMENT_FIELDS
-          ]
-        })
-      }
-    );
-
-    if (!dealsRes.ok) {
-      return {
-        statusCode: 500,
-        body: JSON.stringify({
-          error: "Deal batch-read failed",
-          details: await dealsRes.text()
-        })
-      };
-    }
-
-    const dealsData = await dealsRes.json();
-    const deals = dealsData.results || [];
-
-    if (deals.length === 0) {
-      return {
-        statusCode: 200,
-        body: JSON.stringify({ payments: [], reason: "Deals not readable" })
-      };
-    }
-
-    // 4. Pick the most recently created deal
-    const sorted = deals.slice().sort((a, b) => {
-      const ta = new Date(a.properties?.createdate || 0).getTime();
-      const tb = new Date(b.properties?.createdate || 0).getTime();
-      return tb - ta;
+    return json(200, {
+      dealId: selected.id,
+      dealName: selected.name,
+      dealKind: selected.kind,
+      dealAmount: selected.amount,
+      totalAmountPaid: selected.properties?.total_amount_paid ?? null,
+      totalPaid: selected.totalPaid,
+      totalPaidSource: selected.totalPaidSource,
+      amountDue: selected.amountDue,
+      payments: selected.payments.map(p => ({
+        index: p.index,
+        amount: p.amount,
+        surcharge: p.surcharge,
+        paymentType: p.paymentType,
+        paymentMethod: p.paymentMethod,
+        reference: p.reference,
+        stripePaymentIntent: p.stripePaymentIntent,
+        dateRaw: p.dateRaw,
+        dateIso: p.dateIso
+      })),
+      enrolments: enrolments.map(e => toClientEnrolment(e, selected.id)),
+      // True when the client asked for a specific deal and got it. Lets the
+      // UI tell "you chose this" from "we picked this for you".
+      dealRequested: resolved.requestHonoured
     });
-    const deal = sorted[0];
-
-    // 5. Parse payment_1..10 into structured entries
-    const payments = [];
-    for (let i = 1; i <= 10; i++) {
-      const raw = deal.properties?.[`payment_${i}`];
-      const parsed = parsePaymentEntry(raw);
-      if (parsed) payments.push({ index: i, ...parsed });
-    }
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        dealId: deal.id,
-        dealName: deal.properties?.dealname || null,
-        dealAmount: deal.properties?.amount || null,
-        totalAmountPaid: deal.properties?.total_amount_paid || null,
-        payments
-      })
-    };
 
   } catch (err) {
-    console.error("ERROR:", err);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: err.message })
-    };
+    console.error("[get-paid-payments]", err?.stack || err?.message || err);
+    return json(500, { error: err.message || "Server error" });
   }
-}
-
-// ---------- parser helpers ----------
-
-function parsePaymentEntry(raw) {
-  if (!raw || typeof raw !== "string") return null;
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-
-  // Pull the Stripe Payment Intent (anywhere in the string)
-  const piMatch = trimmed.match(/pi_[A-Za-z0-9]+/);
-  const stripePaymentIntent = piMatch ? piMatch[0] : null;
-
-  // Strip the PI before splitting on commas, then collapse double-commas
-  // left behind by entries like "amount, , date".
-  let withoutPi = piMatch ? trimmed.replace(piMatch[0], "") : trimmed;
-  withoutPi = withoutPi.replace(/,\s*,/g, ",");
-
-  const tokens = withoutPi.split(",").map(s => s.trim()).filter(Boolean);
-
-  // First non-date numeric token = amount
-  let amount = null;
-  for (const tok of tokens) {
-    if (looksLikeDate(tok)) continue;
-    const cleaned = tok.replace(/[^0-9.\-]/g, "");
-    if (!cleaned || cleaned === "-" || cleaned === ".") continue;
-    const n = parseFloat(cleaned);
-    if (isFinite(n) && n > 0) {
-      amount = n;
-      break;
-    }
-  }
-
-  // Last token that parses as a date = date
-  let dateRaw = null;
-  let dateIso = null;
-  for (const tok of [...tokens].reverse()) {
-    const d = parseFlexibleDate(tok);
-    if (d) {
-      dateRaw = tok;
-      dateIso = d.toISOString().slice(0, 10);
-      break;
-    }
-  }
-
-  return {
-    raw: trimmed,
-    amount,
-    stripePaymentIntent,
-    dateRaw,
-    dateIso
-  };
-}
-
-function looksLikeDate(s) {
-  if (!s) return false;
-  if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}/.test(s)) return true;       // 2026-03-12
-  if (/^\d{1,2}[\.\/]\d{1,2}[\.\/]\d{2,4}/.test(s)) return true; // 22.2.26 or 22/2/26
-  if (/^\d{1,2}\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(s)) return true; // 27 March 2026
-  if (/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d/i.test(s)) return true; // March 27 2026
-  return false;
-}
-
-function parseFlexibleDate(s) {
-  if (!s) return null;
-  const trimmed = s.trim();
-  if (!trimmed) return null;
-
-  // Try native Date first (handles ISO and "27 March 2026" reasonably)
-  let d = new Date(trimmed);
-  if (!isNaN(d.getTime())) return d;
-
-  // DD.MM.YY[YY] or DD/MM/YY[YY] (NZ-style)
-  const m = trimmed.match(/^(\d{1,2})[\.\/](\d{1,2})[\.\/](\d{2,4})$/);
-  if (m) {
-    let [, day, month, year] = m;
-    if (year.length === 2) {
-      const yy = parseInt(year, 10);
-      year = (yy > 50 ? "19" : "20") + year;
-    }
-    d = new Date(`${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`);
-    if (!isNaN(d.getTime())) return d;
-  }
-
-  return null;
 }
