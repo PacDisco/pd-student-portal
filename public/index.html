@@ -1160,42 +1160,112 @@
        Only rendered for a student holding more than one deal (a program plus
        a College Credit / Basecamp add-on, or two programs). Sits above the
        Payments summary and the Document Uploads checklist — the two panels
-       scoped to a single enrolment. */
+       scoped to a single enrolment.
+
+       Deliberately loud: it changes what every figure below it means, so a
+       quiet dropdown is the wrong shape for it. Full-width brand header,
+       then one card per enrolment as a segmented control. */
     .enrolment-switcher {
-      background: #fff;
-      border: 1px solid #e5e7eb;
-      border-left: 4px solid #55BBD2;
-      padding: 14px 18px;
-      margin: 0 0 22px;
-      max-width: 720px;
+      margin: 0 0 26px;
+      max-width: 772px;
+      border: 1px solid #cfe9f0;
+      background: #f4fbfd;
     }
+    .enrolment-switcher-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #55BBD2;
+      color: #fff;
+      padding: 11px 18px;
+    }
+    .enrolment-switcher-header svg { flex: none; }
     .enrolment-switcher-label {
-      display: block;
+      font-size: 11px;
+      letter-spacing: 1.6px;
+      font-weight: 600;
+    }
+    .enrolment-switcher-count {
+      margin-left: auto;
       font-size: 10px;
-      letter-spacing: 1.4px;
-      color: #6b7280;
-      margin-bottom: 8px;
+      letter-spacing: 1.2px;
+      opacity: 0.9;
     }
-    .enrolment-switcher-select {
-      width: 100%;
-      max-width: 460px;
-      padding: 9px 12px;
-      font-family: 'Inter', sans-serif;
-      font-size: 13px;
-      color: #111;
+    .enrolment-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 16px 18px 14px;
+    }
+    .enrolment-option {
+      flex: 1 1 240px;
+      display: block;
+      text-align: left;
+      padding: 13px 15px;
       background: #fff;
-      border: 1px solid #d1d5db;
+      border: 1.5px solid #d5dde2;
+      font-family: 'Inter', sans-serif;
       cursor: pointer;
+      transition: border-color .15s ease, box-shadow .15s ease, transform .1s ease;
     }
-    .enrolment-switcher-select:focus {
+    .enrolment-option:hover {
+      border-color: #55BBD2;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(85,187,210,0.16);
+    }
+    .enrolment-option:focus-visible {
       outline: 2px solid #55BBD2;
-      outline-offset: 1px;
+      outline-offset: 2px;
+    }
+    .enrolment-option[aria-pressed="true"] {
+      background: #fff;
+      border-color: #55BBD2;
+      border-left-width: 5px;
+      box-shadow: 0 2px 10px rgba(85,187,210,0.2);
+      cursor: default;
+      transform: none;
+    }
+    .enrolment-option-name {
+      display: block;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: #111;
+      line-height: 1.35;
+      margin-bottom: 5px;
+    }
+    .enrolment-option-meta {
+      display: block;
+      font-size: 11.5px;
+      color: #6b7280;
+      letter-spacing: 0.2px;
+    }
+    .enrolment-option-tag {
+      display: inline-block;
+      margin-top: 8px;
+      font-size: 9px;
+      letter-spacing: 1.3px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 2px;
+      background: #eef2f4;
+      color: #6b7280;
+    }
+    .enrolment-option[aria-pressed="true"] .enrolment-option-tag {
+      background: #55BBD2;
+      color: #fff;
+    }
+    .enrolment-option-tag--addon {
+      background: #fdf1e2;
+      color: #b06d12;
     }
     .enrolment-switcher-hint {
-      margin-top: 8px;
-      font-size: 11px;
-      line-height: 1.5;
-      color: #6b7280;
+      padding: 0 18px 15px;
+      font-size: 11.5px;
+      line-height: 1.55;
+      color: #5b6b73;
+    }
+    @media (max-width: 620px) {
+      .enrolment-option { flex: 1 1 100%; }
     }
 
     /* ----- New Deal-driven payments view ----- */
@@ -2432,13 +2502,32 @@
   function renderEnrolmentSwitcher() {
     const debug = enrolmentDebugOn();
     if (!Array.isArray(enrolments) || (enrolments.length < 2 && !debug)) return "";
+    // One card per enrolment. Each states its own total, what has been paid
+    // and what is outstanding, so switching is an informed choice rather than
+    // a guess at a label.
     const options = enrolments.map(e => {
-      const paid = (e.totalPaid != null && e.totalPaid > 0)
-        ? ` — ${paymentsFmtMoney(e.totalPaid)} paid`
-        : "";
-      const kind = e.kind === "addon" ? " (add-on)" : "";
-      return `<option value="${attrEsc(e.id)}"${e.selected ? " selected" : ""}>` +
-             `${attrEsc(e.label || e.name)}${kind}${paid}</option>`;
+      const bits = [];
+      if (e.amount != null && e.amount > 0) bits.push(paymentsFmtMoney(e.amount));
+      if (e.amountDue != null && e.amountDue > 0) {
+        bits.push(`${paymentsFmtMoney(e.amountDue)} due`);
+      } else if (e.totalPaid != null && e.totalPaid > 0) {
+        bits.push("paid in full");
+      }
+      if (!bits.length) bits.push("amount TBC");
+
+      const tag = e.selected
+        ? `<span class="enrolment-option-tag">VIEWING</span>`
+        : (e.kind === "addon"
+            ? `<span class="enrolment-option-tag enrolment-option-tag--addon">ADD-ON</span>`
+            : `<span class="enrolment-option-tag">SWITCH TO THIS</span>`);
+
+      return `<button type="button" class="enrolment-option"
+                aria-pressed="${e.selected ? "true" : "false"}"
+                onclick="switchEnrolment('${attrEsc(e.id)}')">
+                <span class="enrolment-option-name">${attrEsc(e.label || e.name)}</span>
+                <span class="enrolment-option-meta">${attrEsc(bits.join(" \u00b7 "))}</span>
+                ${tag}
+              </button>`;
     }).join("");
     // In debug mode, show what the resolver returned rather than the
     // student-facing copy.
@@ -2449,14 +2538,23 @@
            <pre style="margin:8px 0 0; font-size:10px; line-height:1.5; white-space:pre-wrap; color:#555;">${attrEsc(JSON.stringify(enrolments, null, 2))}</pre>
          </div>`
       : `<div class="enrolment-switcher-hint">
-           You have more than one enrolment. Trip information elsewhere in the portal is the same for all of them.
+           The payments and documents below apply to the enrolment selected above.
+           Everything else in the portal &mdash; itinerary, flights, manuals &mdash; is the same for both.
          </div>`;
 
+    // Inline SVG rather than an icon font: nothing else on the page loads one.
+    const icon = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"
+        aria-hidden="true"><path d="M7 16H3M3 16l3-3M3 16l3 3"/><path d="M17 8h4M21 8l-3-3M21 8l-3 3"/></svg>`;
+
     return `
-      <div class="enrolment-switcher">
-        <label class="enrolment-switcher-label" for="enrolmentSelect">PAYMENTS &amp; DOCUMENTS FOR</label>
-        <select id="enrolmentSelect" class="enrolment-switcher-select"
-                onchange="switchEnrolment(this.value)">${options}</select>
+      <div class="enrolment-switcher" role="group" aria-label="Choose which enrolment to view">
+        <div class="enrolment-switcher-header">
+          ${icon}
+          <span class="enrolment-switcher-label">CHOOSE AN ENROLMENT</span>
+          <span class="enrolment-switcher-count">${enrolments.length} ON YOUR ACCOUNT</span>
+        </div>
+        <div class="enrolment-options">${options}</div>
         ${hint}
       </div>`;
   }
