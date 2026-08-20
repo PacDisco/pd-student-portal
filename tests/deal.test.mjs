@@ -19,6 +19,7 @@ import {
   isStaleShell,
   isCancelled,
   isMarkedDead,
+  isEmptyOfActivity,
   programNameOfDeal,
   withinDuplicateWindow,
   toClientEnrolment
@@ -184,10 +185,35 @@ test("classifies a program deal as a program", () => {
   assert.equal(classifyDeal(JONAS_PROGRAM), "program");
 });
 
-test("ignores test-pipeline and abandoned deals", () => {
+test("ignores an EMPTY test-pipeline deal, and abandoned shells", () => {
   assert.equal(classifyDeal(SOMYA_TEST_PIPELINE), "ignore");
   assert.equal(classifyDeal(STALE_SHELL), "ignore");
   assert.equal(isStaleShell(STALE_SHELL.properties), true);
+  assert.equal(isEmptyOfActivity(SOMYA_TEST_PIPELINE.properties), true);
+});
+
+test("a test-pipeline deal with real activity is still an enrolment", () => {
+  // Jake Weinheimer's own College Credit test deal sits in the Test PD
+  // Pipeline but carries a payment. Excluding a whole pipeline outright hid
+  // it, which is how this rule got found — hiding a deal someone has paid
+  // against is worse than showing one extra option.
+  const parked = deal(64175406238, {
+    dealname: "3841913438 - New Deal", amount: "10000",
+    pd_program: "College Credit Program", pipeline: "12030850",
+    createdate: "2026-08-20T10:49:42.688Z", payment_1: "200"
+  });
+  assert.equal(isEmptyOfActivity(parked.properties), false);
+  assert.equal(classifyDeal(parked), "addon");
+
+  const program = deal(19369851065, {
+    dealname: "Jake Weinheimer - Test Account", amount: "10000",
+    pipeline: "74958084", total_amount_paid: "0",
+    createdate: "2024-05-14T22:14:50.302Z", payment_1: "1000",
+    document_submissions: "Medical Form (if needed);Bio Complete;Flight Information"
+  });
+  const { enrolments } = buildEnrolments([parked, program], {});
+  assert.equal(enrolments.length, 2, "the switcher needs two to render");
+  assert.equal(pickEnrolment(enrolments, null).id, "19369851065", "the program, not the add-on");
 });
 
 test("an explicit portal_deal_role overrides the name heuristic", () => {

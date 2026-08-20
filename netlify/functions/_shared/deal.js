@@ -62,7 +62,11 @@ const CANCELLED_NAME_PATTERN = new RegExp(
   "i"
 );
 
-// Pipelines that never belong in the portal (test/scratch pipelines).
+// Test/scratch pipelines. Being in one is a WEAK signal, not decisive: it
+// only excludes a deal that also has nothing on it — no payments, no
+// documents. A real enrolment that someone parked in a test pipeline still
+// shows, because hiding a deal a student has actually paid against is far
+// worse than showing one extra option.
 // Override with DEAL_PIPELINE_DENYLIST as a comma-separated list of ids.
 const EXCLUDED_PIPELINES = new Set(
   (process.env.DEAL_PIPELINE_DENYLIST || "12030850")
@@ -144,6 +148,15 @@ function hasAnyPayment(props) {
   return PAYMENT_FIELDS.some(f => String(props[f] || "").trim());
 }
 
+// Nothing has happened on this deal: no money in, no documents asked for.
+// Used to decide whether a scratch-pipeline record is real.
+export function isEmptyOfActivity(props = {}) {
+  const hasDocs = Boolean(String(props[DOCUMENTS_NEEDED_PROPERTY] || "").trim());
+  const paid = parseFloat(props.total_amount_paid);
+  const hasPaid = Number.isFinite(paid) && paid > 0;
+  return !hasDocs && !hasPaid && !hasAnyPayment(props);
+}
+
 // A deal with no money, no payments and no document requirements is an
 // abandoned shell — it should never be what a student lands on.
 export function isStaleShell(props = {}) {
@@ -193,7 +206,11 @@ export function classifyDeal(deal) {
   const explicit = String(props[ROLE_PROPERTY] || "").trim().toLowerCase();
   if (explicit === "program" || explicit === "addon" || explicit === "ignore") return explicit;
 
-  if (EXCLUDED_PIPELINES.has(String(props.pipeline || ""))) return "ignore";
+  // A scratch-pipeline deal is only ignored when it is also empty — see the
+  // note on EXCLUDED_PIPELINES.
+  if (EXCLUDED_PIPELINES.has(String(props.pipeline || "")) && isEmptyOfActivity(props)) {
+    return "ignore";
+  }
   if (isStaleShell(props)) return "ignore";
   if (isCancelled(props)) return "ignore";
   if (isMarkedDead(props)) return "ignore";

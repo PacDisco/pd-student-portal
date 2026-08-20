@@ -2408,6 +2408,7 @@
   // keeps `selectedDealId` in step with the deal the server actually used —
   // it may have overridden a stale id left over from another trip.
   function noteEnrolments(payload) {
+    if (enrolmentDebugOn()) console.log("[enrolments] endpoint payload:", payload);
     if (!payload || !Array.isArray(payload.enrolments)) return;
     enrolments = payload.enrolments;
     if (payload.dealId && String(payload.dealId) !== selectedDealId) {
@@ -2416,10 +2417,21 @@
     }
   }
 
+  // Add ?debug_enrolments=1 to the portal URL to force the switcher to render
+  // even for a single enrolment, with the resolved list printed underneath.
+  // Two things it answers in one look: whether this build is actually
+  // deployed, and what the server resolved for this contact.
+  function enrolmentDebugOn() {
+    try {
+      return new URLSearchParams(window.location.search).get("debug_enrolments") === "1";
+    } catch (_) { return false; }
+  }
+
   // Renders nothing for the single-enrolment case, so the overwhelming
   // majority of students see no change at all.
   function renderEnrolmentSwitcher() {
-    if (!Array.isArray(enrolments) || enrolments.length < 2) return "";
+    const debug = enrolmentDebugOn();
+    if (!Array.isArray(enrolments) || (enrolments.length < 2 && !debug)) return "";
     const options = enrolments.map(e => {
       const paid = (e.totalPaid != null && e.totalPaid > 0)
         ? ` — ${paymentsFmtMoney(e.totalPaid)} paid`
@@ -2428,14 +2440,24 @@
       return `<option value="${attrEsc(e.id)}"${e.selected ? " selected" : ""}>` +
              `${attrEsc(e.label || e.name)}${kind}${paid}</option>`;
     }).join("");
+    // In debug mode, show what the resolver returned rather than the
+    // student-facing copy.
+    const hint = debug
+      ? `<div class="enrolment-switcher-hint"><strong>debug_enrolments=1</strong> &middot;
+           ${enrolments.length} enrolment${enrolments.length === 1 ? "" : "s"} resolved &middot;
+           selected deal ${attrEsc(selectedDealId || "(server default)")}
+           <pre style="margin:8px 0 0; font-size:10px; line-height:1.5; white-space:pre-wrap; color:#555;">${attrEsc(JSON.stringify(enrolments, null, 2))}</pre>
+         </div>`
+      : `<div class="enrolment-switcher-hint">
+           You have more than one enrolment. Trip information elsewhere in the portal is the same for all of them.
+         </div>`;
+
     return `
       <div class="enrolment-switcher">
         <label class="enrolment-switcher-label" for="enrolmentSelect">PAYMENTS &amp; DOCUMENTS FOR</label>
         <select id="enrolmentSelect" class="enrolment-switcher-select"
                 onchange="switchEnrolment(this.value)">${options}</select>
-        <div class="enrolment-switcher-hint">
-          You have more than one enrolment. Trip information elsewhere in the portal is the same for all of them.
-        </div>
+        ${hint}
       </div>`;
   }
 
