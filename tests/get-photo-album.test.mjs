@@ -11,6 +11,7 @@
 
 import assert from "node:assert/strict";
 import {
+  albumLinkProblem,
   cleanAlbumTitle,
   describeAlbumHtml,
   extractOgImage,
@@ -241,6 +242,40 @@ test("fallback still excludes avatars", () => {
 test("the precise pass still wins when it matches", () => {
   const p = extractPhotos(SAMPLE);
   assert.equal(p[0].width, 4032, "dimensions should survive when pass 1 matched");
+});
+
+// ---------------------------------------------------------------------------
+// albumLinkProblem — telling a share link apart from the address-bar URL.
+//
+// Real incident: photo_album_link held
+//   https://photos.google.com/u/4/album/AF1QipMSvNxwODlAEDB5WFG_9jEyuYxxuS3oKL9pVVuA
+// copied from the browser while signed in. Google redirected the server to
+// accounts.google.com and the page reported an empty album, which sent us
+// chasing a scraping bug for several rounds.
+// ---------------------------------------------------------------------------
+console.log("\nalbumLinkProblem");
+
+test("flags the address-bar album URL", () => {
+  assert.equal(
+    albumLinkProblem("https://photos.google.com/u/4/album/AF1QipMSvNxwODlAEDB5WFG"),
+    "PRIVATE_LINK"
+  );
+});
+
+test("flags it without the /u/<n>/ prefix too", () => {
+  assert.equal(albumLinkProblem("https://photos.google.com/album/AF1QipMSvNxw"), "PRIVATE_LINK");
+});
+
+test("accepts a real share link", () => {
+  assert.equal(albumLinkProblem("https://photos.google.com/share/AF1QipPC6Yli?key=SDk3MTN5"), null);
+});
+
+test("accepts a share link under an account index", () => {
+  assert.equal(albumLinkProblem("https://photos.google.com/u/0/share/AF1QipPC6Yli?key=abc"), null);
+});
+
+test("leaves short links alone — they resolve to a share URL later", () => {
+  assert.equal(albumLinkProblem("https://photos.app.goo.gl/PTpZmeDowWCHwLeQA"), null);
 });
 
 // ---------------------------------------------------------------------------
