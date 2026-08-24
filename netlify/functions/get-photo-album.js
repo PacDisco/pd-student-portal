@@ -128,6 +128,25 @@ export function isGooglePhotosLink(raw) {
 }
 
 /**
+ * Distinguish a *share* link from the private album URL.
+ *
+ * The single most likely staff mistake: opening the album in Google Photos
+ * and copying the browser's address bar. That gives
+ *   https://photos.google.com/u/4/album/AF1Qip...
+ * which is account-scoped — Google redirects anyone else to a sign-in page.
+ * A share link is /share/ (optionally under /u/<n>/) and carries a ?key=.
+ *
+ * Returns "PRIVATE_LINK" for the address-bar form, otherwise null.
+ */
+export function albumLinkProblem(normalizedUrl) {
+  let u;
+  try { u = new URL(normalizedUrl); } catch { return null; }
+  if (u.hostname !== "photos.google.com") return null;   // short links are fine
+  const path = u.pathname.replace(/^\/u\/\d+/, "");
+  return path.startsWith("/share/") ? null : "PRIVATE_LINK";
+}
+
+/**
  * Pull photo URLs out of a Google Photos shared-album page.
  *
  * The album page ships its data as AF_initDataCallback(...) JS blobs rather
@@ -332,6 +351,14 @@ async function fetchPage(url) {
   if (!res.ok) {
     const e = new Error(`Google Photos returned HTTP ${res.status}`);
     e.upstream = res.status;
+    throw e;
+  }
+  // Landing on a sign-in page means the link isn't publicly shared — either
+  // it's an account-scoped URL, or link sharing was turned off on the album.
+  // It answers 200, so without this check it reads as an empty album.
+  if (/^https:\/\/accounts\.google\.com\//.test(res.url || "")) {
+    const e = new Error("Google asked for a sign-in — this album isn't shared publicly");
+    e.signin = true;
     throw e;
   }
   return { html: await res.text(), finalUrl: res.url };
@@ -573,6 +600,18 @@ export async function handler(event) {
       });
     }
 
+    // Caught before we waste a fetch: the address-bar URL always redirects a
+    // non-owner to a Google sign-in page, which otherwise surfaces as a
+    // generic "couldn't load the photos" and sends staff hunting for a bug.
+    if (albumLinkProblem(albumUrl) === "PRIVATE_LINK") {
+      return json(422, {
+        error: "That's a private album link, not a share link",
+        code: "PRIVATE_LINK",
+        hint: "This is the URL from your browser's address bar — it only works for the account that owns the album. In Google Photos open the album, click Share, create a link, and paste that instead (it contains /share/ and a ?key=).",
+        trip,
+      });
+    }
+
     // ---- 4. Read the album ----
     // Server-side extraction is the preferred path (first-party, no external
     // script, link stays off the page). It only works if Google serves the
@@ -605,9 +644,12 @@ export async function handler(event) {
         count: 0,
         photos: [],
         degraded: true,
-        hint: e.upstream === 404
-          ? "This album is no longer shared. Check the link sharing setting in Google Photos."
-          : "Couldn't load the photos right now — you can still open the album in Google Photos.",
+        code: e.signin ? "NOT_SHARED" : undefined,
+        hint: e.signin
+          ? "This album isn't shared publicly — Google asked for a sign-in. In Google Photos, open the album, click Share and create a link, then paste that link into HubSpot."
+          : e.upstream === 404
+            ? "This album is no longer shared. Check the link sharing setting in Google Photos."
+            : "Couldn't load the photos right now — you can still open the album in Google Photos.",
         trip,
       });
     }
