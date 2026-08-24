@@ -641,6 +641,14 @@
         renderError("You don't have access to this trip's photos.");
       } else if (res.status === 404) {
         renderEmpty(data.hint || data.error || "No photos available for this trip yet.", data);
+      } else if (res.status === 422) {
+        // Setup problems (wrong kind of link). Staff need the detail; a
+        // family just needs to know photos aren't ready yet.
+        if (sessionStorage.getItem("adminRole") || DEBUG_Q) {
+          renderError(data.error || "That album link can't be used", data.hint);
+        } else {
+          renderEmpty("Photos for this trip aren't ready yet — check back soon.");
+        }
       } else {
         renderError(data.error || ("HTTP " + res.status), data.hint);
       }
