@@ -52,6 +52,8 @@ const ALLOWED_HOSTS = new Set([
 // family reloading the tab shouldn't re-fetch Google every time. The cache
 // lives in the warm lambda instance only — cold starts just re-fetch.
 const CACHE_TTL_MS = 10 * 60 * 1000;
+// A read that found nothing is retried much sooner — see loadAlbum().
+const EMPTY_CACHE_TTL_MS = 30 * 1000;
 const _albumCache = new Map();
 
 const UA =
@@ -337,7 +339,7 @@ async function fetchPage(url) {
 
 async function loadAlbum(albumUrl) {
   const cached = _albumCache.get(albumUrl);
-  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) return cached.value;
+  if (cached && Date.now() - cached.ts < (cached.ttl || CACHE_TTL_MS)) return cached.value;
 
   let { html, finalUrl } = await fetchPage(albumUrl);
   let photos = extractPhotos(html);
@@ -358,14 +360,27 @@ async function loadAlbum(albumUrl) {
     }
   }
 
-  // Note on a wrong turn, so nobody re-adds it: this used to discard a lone
-  // photo that matched the og:image, on the theory that Google only ships the
-  // cover to server-side fetchers. That theory was wrong — the album list IS
-  // in the HTML, and the guard was hiding legitimate single-photo albums. An
-  // album with one photo has that photo as its cover, which is exactly what
-  // the check keyed on. Kept as opt-in only.
-  const ogImage = extractOgImage(html);
-  const coverOnly = isCoverOnly(photos, ogImage);
+  // Google's response varies request to request: the same album URL can come
+  // back with its photo list one moment and without it the next. A miss looks
+  // like either nothing at all, or the og:image cover on its own — retry both,
+  // and keep the retry only if it beat the first read.
+  //
+  // On the cover-only case specifically: do NOT discard that lone photo if the
+  // retry doesn't improve on it. An album that genuinely holds one photo has
+  // that photo as its cover, so the two are indistinguishable in the HTML.
+  // An earlier version discarded it and hid working single-photo albums.
+  let coverOnly = isCoverOnly(photos, extractOgImage(html));
+  if (!photos.length || coverOnly) {
+    const retry = await fetchPage(resolvedUrl || finalUrl || albumUrl);
+    const retryPhotos = extractPhotos(retry.html);
+    if (retryPhotos.length > photos.length) {
+      html = retry.html;
+      finalUrl = retry.finalUrl;
+      photos = retryPhotos;
+      coverOnly = isCoverOnly(photos, extractOgImage(html));
+    }
+  }
+
   if (coverOnly && String(process.env.STRICT_COVER_ONLY || "") === "1") photos = [];
 
   const value = {
@@ -382,7 +397,17 @@ async function loadAlbum(albumUrl) {
           cover_only: coverOnly,
         },
   };
-  _albumCache.set(albumUrl, { ts: Date.now(), value });
+  // Only cache a good read. Google's response to this IP is not consistent —
+  // the same album can return its full photo list on one request and a page
+  // without it on the next. Caching a failure would pin that bad result for
+  // the full TTL, so an empty result gets a short retry window instead.
+  _albumCache.set(albumUrl, {
+    ts: Date.now(),
+    // A cover-only result is a probable miss too — give it the short TTL so
+    // the next visitor re-reads rather than being stuck with one thumbnail.
+    ttl: (photos.length && !coverOnly) ? CACHE_TTL_MS : EMPTY_CACHE_TTL_MS,
+    value,
+  });
   return value;
 }
 
@@ -609,8 +634,13 @@ export async function handler(event) {
     // Staff-only. Explains a zero-photo album without needing a redeploy:
     // whether Google served us a real page, whether any media URLs were in
     // it, and what shape they're in. Never sent to families.
+    // Staff see it automatically; anyone authenticated can ask for it with
+    // ?debug=1 on the page URL. It only describes the album the caller is
+    // already looking at, and without this it's invisible to a contact who
+    // has no admin_role — which is exactly when you most need to see it.
     const isStaff = !!identity.role;
-    const diagnostic = (isStaff && album.diagnostic)
+    const wantsDebug = String((event.queryStringParameters || {}).debug || "") === "1";
+    const diagnostic = ((isStaff || wantsDebug) && album.diagnostic)
       ? { ...album.diagnostic, album_url: albumUrl }
       : undefined;
 
