@@ -304,9 +304,11 @@ test("finds a URL with unicode-escaped separators", () => {
   assert.equal(findShareUrl(esc), LONG);
 });
 
-test("handles an html-escaped ampersand", () => {
+test("handles an html-escaped ampersand, keeping the extra parameter", () => {
+  // Trailing params are harmless to Google and safer to keep than to guess
+  // at trimming — truncating a query string is how you lose ?key=.
   const html = `<meta http-equiv="refresh" content="0;url=${LONG}&amp;source=fdl">`;
-  assert.equal(findShareUrl(html), LONG);
+  assert.equal(findShareUrl(html), LONG + "&source=fdl");
 });
 
 test("keeps the key parameter — the album 404s without it", () => {
@@ -320,6 +322,44 @@ test("returns null when there's no album link to find", () => {
 
 test("ignores share links on other hosts", () => {
   assert.equal(findShareUrl(`<a href="https://evil.test/photos.google.com/share/AAA">x</a>`), null);
+});
+
+// The forms that actually turned up in a Firebase Dynamic Link interstitial,
+// which the first version of this resolver missed entirely.
+test("finds a percent-encoded destination in a query parameter", () => {
+  const fdl = `<a href="/l/?link=https%3A%2F%2Fphotos.google.com%2Fshare%2FAF1QipPC6Yli%3Fkey%3DSDk3MTN5">go</a>`;
+  assert.equal(findShareUrl(fdl), LONG);
+});
+
+test("finds a double-encoded destination", () => {
+  const fdl = `link=https%253A%252F%252Fphotos.google.com%252Fshare%252FAF1QipPC6Yli%253Fkey%253DSDk3MTN5`;
+  assert.equal(findShareUrl(fdl), LONG);
+});
+
+test("keeps extra query parameters instead of truncating the url", () => {
+  const html = `"https://photos.google.com/share/AF1QipPC6Yli?key=SDk3MTN5&source=fdl"`;
+  assert.equal(findShareUrl(html), LONG + "&source=fdl");
+});
+
+test("prefers a candidate carrying ?key= over one without", () => {
+  const html = `
+    <link rel="canonical" href="https://photos.google.com/share/AF1QipPC6Yli">
+    <a href="${LONG}">open</a>`;
+  assert.equal(findShareUrl(html), LONG);
+});
+
+test("falls back to a keyless share url when that's all there is", () => {
+  const html = `<link rel="canonical" href="https://photos.google.com/share/AF1QipPC6Yli">`;
+  assert.equal(findShareUrl(html), "https://photos.google.com/share/AF1QipPC6Yli");
+});
+
+test("handles a share url under an account index", () => {
+  const html = `"https://photos.google.com/u/0/share/AF1QipPC6Yli?key=SDk3MTN5"`;
+  assert.equal(findShareUrl(html), "https://photos.google.com/u/0/share/AF1QipPC6Yli?key=SDk3MTN5");
+});
+
+test("does not swallow trailing sentence punctuation", () => {
+  assert.equal(findShareUrl(`Open ${LONG}.`), LONG);
 });
 
 // ---------------------------------------------------------------------------
