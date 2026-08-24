@@ -234,6 +234,10 @@ export function describeAlbumHtml(html, finalUrl) {
     page_title: titleMatch ? titleMatch[1].trim() : null,
     final_url: url || null,
     looks_like_wall: wall,
+    // Does the destination appear in this page at all? Distinguishes "the
+    // resolver's pattern missed it" from "the interstitial doesn't contain
+    // it", which need completely different fixes.
+    share_url_found: findShareUrl(s) || "(no photos.google.com/share/ url in page)",
     // A short window around the first media URL: enough to see the shape
     // Google is using now, not enough to be a data dump.
     first_pw_context: firstPw === -1 ? null : s.slice(Math.max(0, firstPw - 120), firstPw + 200),
@@ -251,13 +255,48 @@ export function describeAlbumHtml(html, finalUrl) {
  * whether it sits in markup or inside a JS string, so unescape first.
  */
 export function findShareUrl(html) {
-  const s = String(html || "")
+  let s = String(html || "");
+
+  // Unescape every layer the destination might be wrapped in. Firebase puts
+  // it in a query parameter (percent-encoded, sometimes twice), inside JS
+  // string literals (backslash- or unicode-escaped), and in markup (HTML
+  // entities). Two passes covers the double-encoded case.
+  const unescapeOnce = (x) => x
+    // %25 first: without it "%253A" never becomes "%3A", so a double-encoded
+    // destination stays hidden no matter how many passes you run.
+    .replace(/%25/gi, "%")
     .replace(/\\u002[fF]/g, "/")
-    .replace(/\\\//g, "/")
+    .replace(/\\u003[aA]/g, ":")
     .replace(/\\u003[dD]/g, "=")
-    .replace(/\\u0026|&amp;/g, "&");
-  const m = /https:\/\/photos\.google\.com\/share\/[A-Za-z0-9_-]+(?:\?key=[A-Za-z0-9_-]+)?/.exec(s);
-  return m ? m[0] : null;
+    .replace(/\\u0026/g, "&")
+    .replace(/\\u003[fF]/g, "?")
+    .replace(/\\\//g, "/")
+    .replace(/&amp;/g, "&")
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
+    .replace(/%3A/gi, ":")
+    .replace(/%2F/gi, "/")
+    .replace(/%3F/gi, "?")
+    .replace(/%3D/gi, "=")
+    .replace(/%26/gi, "&");
+
+  s = unescapeOnce(unescapeOnce(s));
+
+  // Permissive on the query string: a share URL can carry more than ?key=,
+  // and the parameter order isn't ours to assume. Stop at whitespace, quotes,
+  // angle brackets, backslashes or a closing paren — everything that can
+  // legitimately terminate a URL in markup or in a JS string.
+  const re = /https:\/\/photos\.google\.com\/(?:u\/\d+\/)?share\/[^\s"'<>\\)\]]+/g;
+
+  let best = null;
+  let m;
+  while ((m = re.exec(s)) !== null) {
+    // Trim punctuation that belongs to the surrounding document, not the URL.
+    const url = m[0].replace(/[.,;:]+$/, "");
+    // Prefer a candidate carrying ?key= — the album 404s without it.
+    if (url.includes("key=")) return url;
+    if (!best) best = url;
+  }
+  return best;
 }
 
 /** Decode the HTML entities that show up in meta tag content. */
