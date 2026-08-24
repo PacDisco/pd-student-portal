@@ -407,6 +407,8 @@ async function loadAlbum(albumUrl) {
   const cached = _albumCache.get(albumUrl);
   if (cached && Date.now() - cached.ts < (cached.ttl || CACHE_TTL_MS)) return cached.value;
 
+  const wasShortLink = /^(photos\.app\.goo\.gl|goo\.gl)$/i.test(new URL(albumUrl).hostname);
+
   let { html, finalUrl } = await fetchPage(albumUrl);
   let photos = extractPhotos(html);
   let resolvedUrl = null;
@@ -453,6 +455,12 @@ async function loadAlbum(albumUrl) {
     photos,
     title: extractTitle(html),
     coverOnly,
+    // A short link we couldn't expand. Confirmed against a live album: the
+    // Firebase interstitial contains no photos.google.com/share/ URL at all
+    // — it decides the destination in JavaScript at run time — so there is
+    // nothing for the server to follow. The handler turns this into an
+    // actionable message rather than an empty gallery.
+    shortLinkUnresolved: wasShortLink && !resolvedUrl && photos.length === 0,
     // Only computed when there's something to explain.
     diagnostic: photos.length
       ? null
@@ -689,6 +697,18 @@ export async function handler(event) {
           : e.upstream === 404
             ? "This album is no longer shared. Check the link sharing setting in Google Photos."
             : "Couldn't load the photos right now — you can still open the album in Google Photos.",
+        trip,
+      });
+    }
+
+    // A short link that couldn't be expanded is a fixable setup problem, not
+    // an empty album — say so instead of dropping to the fallback viewer.
+    if (album.shortLinkUnresolved) {
+      return json(422, {
+        error: "This trip has a shortened Google Photos link",
+        code: "SHORT_LINK",
+        hint: "Short photos.app.goo.gl links can't be read by the portal — they redirect using JavaScript, so there's nothing for the server to follow. Open the link in a browser, wait for it to land on photos.google.com/share/..., and paste that full URL into HubSpot instead.",
+        album_url: albumUrl,
         trip,
       });
     }
