@@ -460,8 +460,11 @@
     // Staff-only: why did the album come back empty? The function reports
     // what Google actually served, so "page needs JavaScript" can be told
     // apart from "markup shape changed" without another deploy.
+    // The server decides who gets a diagnostic (staff, or anyone passing
+    // ?debug=1). The page just renders whatever it was given — gating again
+    // on adminRole here is what made it disappear for non-admin staff.
     const d = payload.diagnostic;
-    const diagBlock = (d && sessionStorage.getItem("adminRole"))
+    const diagBlock = d
       ? `<pre style="margin:18px 0 0;padding:12px;background:#f6f8f9;border:1px solid #e5e7eb;
                      font-size:11px;line-height:1.7;color:#666;white-space:pre-wrap;
                      word-break:break-all;font-family:ui-monospace,Menlo,monospace;">${attrEsc(
@@ -649,8 +652,12 @@
     renderAlbum(data);
   }
 
+  // ?debug=1 on the page URL is forwarded to the function, which then returns
+  // its diagnostic even when the caller has no admin_role.
+  const DEBUG_Q = new URLSearchParams(location.search).get("debug") === "1" ? "&debug=1" : "";
+
   async function loadForPortal(picked) {
-    const url = `/.netlify/functions/get-photo-album?picked=${encodeURIComponent(picked)}`;
+    const url = `/.netlify/functions/get-photo-album?picked=${encodeURIComponent(picked)}${DEBUG_Q}`;
     const res = await fetch(url);
     const data = await res.json();
     handlePayload(res, data);
@@ -666,7 +673,7 @@
       }
       // Otherwise let the endpoint figure it out — it handles single,
       // multi-trip picker, and unauthorized cases in one call.
-      const res = await fetch("/.netlify/functions/get-photo-album");
+      const res = await fetch("/.netlify/functions/get-photo-album?" + DEBUG_Q.replace(/^&/, ""));
       const data = await res.json();
       handlePayload(res, data);
     } catch (err) {
