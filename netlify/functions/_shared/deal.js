@@ -523,6 +523,79 @@ export async function fetchDealsForContact(contactId, headers = hubspotHeaders()
   return { deals: dealsData.results || [], associatedIds };
 }
 
+// Every contact associated with a deal — the student plus whoever else is on
+// the enrolment (parents, guardians, a second parent paying separately).
+//
+// Why this exists: uploads land in Jotform keyed only by the email the
+// submitter typed, so matching on the logged-in user's email alone means a
+// parent cannot see the passport their child uploaded, and vice versa. The
+// deal is the thing they share, so its contact list is the right audience.
+//
+// Returns [{ id, email, firstname, lastname, name, label }] — `label` is the
+// HubSpot association label ("Parent", "Student", …) when one is set, so the
+// UI can say who uploaded what.
+//
+// FAILS SOFT: on any HubSpot error it returns [] and the caller falls back to
+// the logged-in contact alone. Showing only your own documents is a degraded
+// portal; throwing here would be a broken one.
+export async function fetchContactsForDeal(dealId, headers = hubspotHeaders()) {
+  const id = String(dealId || "").trim();
+  if (!id) return [];
+
+  try {
+    const assocRes = await fetch(
+      `https://api.hubapi.com/crm/v4/objects/deals/${encodeURIComponent(id)}/associations/contacts?limit=100`,
+      { headers }
+    );
+    if (!assocRes.ok) {
+      console.warn(`[deal] contact association lookup failed for deal ${id}: HTTP ${assocRes.status}`);
+      return [];
+    }
+
+    const assocData = await assocRes.json();
+    const labelById = new Map();
+    for (const r of assocData.results || []) {
+      if (r?.toObjectId == null) continue;
+      const label = (r.associationTypes || [])
+        .map(t => String(t?.label || "").trim())
+        .find(Boolean) || null;
+      labelById.set(String(r.toObjectId), label);
+    }
+    if (!labelById.size) return [];
+
+    const readRes = await fetch("https://api.hubapi.com/crm/v3/objects/contacts/batch/read", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        inputs: [...labelById.keys()].map(cid => ({ id: cid })),
+        properties: ["email", "firstname", "lastname"]
+      })
+    });
+    if (!readRes.ok) {
+      console.warn(`[deal] contact batch-read failed for deal ${id}: HTTP ${readRes.status}`);
+      return [];
+    }
+
+    const readData = await readRes.json();
+    return (readData.results || []).map(c => {
+      const p = c.properties || {};
+      const name = `${p.firstname || ""} ${p.lastname || ""}`.trim();
+      return {
+        id: String(c.id),
+        email: String(p.email || "").toLowerCase().trim(),
+        firstname: p.firstname || "",
+        lastname: p.lastname || "",
+        name,
+        label: labelById.get(String(c.id)) || null
+      };
+    }).filter(c => c.email);
+
+  } catch (err) {
+    console.warn(`[deal] contact lookup threw for deal ${id}:`, err?.message || err);
+    return [];
+  }
+}
+
 // One call for the common case: email → enrolments + the selected one.
 //
 // `requestedDealId` comes from the client, so it is only honoured when it is

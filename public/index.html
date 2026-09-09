@@ -2135,6 +2135,16 @@
       letter-spacing: 0.5px;
     }
 
+    /* Explains that the list below pools the whole enrolment's uploads —
+       shown only when someone other than the viewer has uploaded. */
+    .docs-shared-note {
+      color: #777;
+      font-size: 12px;
+      line-height: 1.5;
+      padding: 8px 0 4px;
+      letter-spacing: 0.3px;
+    }
+
     /* Documents checklist (rendered at the top of the Document Uploads tab) */
     .doc-checklist {
       list-style: none;
@@ -4294,6 +4304,7 @@
   async function loadDocumentsTab(content) {
     let formInputs = [];     // [{ url, formId, origin }]
     let documents = [];
+    let sharedWith = [];     // everyone on this enrolment whose uploads are pooled
     let formTitlesById = {}; // { formId: title }
     let docsError = null;
     // Checklist from deal.documents_needed — fetched in parallel with
@@ -4328,7 +4339,11 @@
       const APPLICATION_FORM_ID = "240277257210046";
       const ids = formInputs.map(f => f.formId).filter(Boolean).join(",");
       if (ids || APPLICATION_FORM_ID) {
-        const params = new URLSearchParams({ email });
+        // The enrolment params matter here: the backend pools uploads across
+        // every contact on the selected deal, so it needs to know which deal
+        // the portal is showing (same query the checklist above sends).
+        const params = new URLSearchParams(enrolmentQuery());
+        params.set("email", email);
         if (ids) params.set("formIds", ids);
         if (APPLICATION_FORM_ID) params.set("appPhotoFormId", APPLICATION_FORM_ID);
         const docsRes = await fetch(
@@ -4337,6 +4352,7 @@
         const docsData = await docsRes.json();
         if (docsData.error) docsError = docsData.error;
         documents = Array.isArray(docsData.documents) ? docsData.documents : [];
+        sharedWith = Array.isArray(docsData.sharedWith) ? docsData.sharedWith : [];
         (docsData.forms || []).forEach(f => {
           if (f && f.id) formTitlesById[f.id] = f.title;
         });
@@ -4382,14 +4398,24 @@
       </div>`;
     }
 
-    // b. Uploaded documents list
+    // b. Uploaded documents list — pooled across everyone on this enrolment,
+    //    so a student sees their parent's uploads and vice versa. Only say so
+    //    when there is actually someone else in the pool.
+    const otherUploaders = sharedWith.filter(p => p && !p.isSelf && p.name);
     html += `<div class="docs-section">
-      <div class="docs-section-label">YOUR UPLOADED DOCUMENTS</div>`;
+      <div class="docs-section-label">UPLOADED DOCUMENTS</div>`;
     if (docsError) {
       html += `<div class="docs-empty">Could not load uploaded documents: ${attrEsc(docsError)}</div>`;
     } else if (documents.length === 0) {
       html += `<div class="docs-empty">No documents uploaded yet.</div>`;
     } else {
+      if (otherUploaders.length) {
+        const names = otherUploaders.map(p => p.name);
+        const list = names.length === 1
+          ? names[0]
+          : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+        html += `<div class="docs-shared-note">Includes documents uploaded by ${attrEsc(list)}.</div>`;
+      }
       html += `<div class="docs-grid">${documents.map(renderDocumentCard).join("")}</div>`;
     }
     html += `</div>`;
@@ -4494,12 +4520,32 @@
         dateStr = d.toLocaleDateString("en-NZ", { year: "numeric", month: "short", day: "numeric" });
       }
     }
+    // Who uploaded it. The list pools the whole household, so the student
+    // needs to be able to tell their own files from a parent's. "You" for
+    // your own; the name (plus the HubSpot association label, when there is
+    // one) for everyone else. Falls back to just the date when the backend
+    // had no name — e.g. the HubSpot lookup was unavailable.
+    const uploaderName = doc.uploadedByName ? String(doc.uploadedByName).trim() : "";
+    let byline = "";
+    if (doc.uploadedByMe) {
+      byline = "You";
+    } else if (uploaderName) {
+      const role = doc.uploadedByLabel ? String(doc.uploadedByLabel).trim() : "";
+      byline = role ? `${uploaderName} (${role})` : uploaderName;
+    }
+    // Escape each piece, then join with the separator — never escape the
+    // assembled string, or the &middot; entity gets double-escaped.
+    const metaParts = [];
+    if (byline) metaParts.push(`Uploaded by ${attrEsc(byline)}`);
+    if (dateStr) metaParts.push(byline ? attrEsc(dateStr) : `Uploaded ${attrEsc(dateStr)}`);
+    const metaLine = metaParts.join(" &middot; ");
+
     return `
       <div class="docs-card${showHeading ? "" : " docs-card--no-heading"}">
         <div>
           ${showHeading ? `<h4>${attrEsc(heading)}</h4>` : ""}
           <div class="docs-filename">${attrEsc(filename)}</div>
-          ${dateStr ? `<div class="docs-date">Uploaded ${attrEsc(dateStr)}</div>` : ""}
+          ${metaLine ? `<div class="docs-date">${metaLine}</div>` : ""}
         </div>
         <a href="${attrEsc(doc.url)}" target="_blank" rel="noopener" class="docs-link">VIEW DOCUMENT</a>
       </div>
