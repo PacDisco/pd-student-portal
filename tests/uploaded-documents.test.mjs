@@ -31,11 +31,14 @@ const PARENT2 = { id: "3", email: "mum@example.com",  name: "Anna Reynolds",  la
 
 // A submission shaped like the free-form document-upload form: an email
 // field, a "Document Name" textbox, then a generic file upload.
+// `emails` entries are either a bare address or a [label, address] pair, so a
+// test can place an emergency-contact field.
 function submission({ emails = [], docName = null, upload = null, label = "Upload", created = "2026-03-01 10:00:00" } = {}) {
   const answers = {};
   let order = 1;
-  for (const e of emails) {
-    answers[String(order)] = { type: "control_email", text: "Email", order: String(order), answer: e };
+  for (const entry of emails) {
+    const [text, e] = Array.isArray(entry) ? entry : ["Email", entry];
+    answers[String(order)] = { type: "control_email", text, order: String(order), answer: e };
     order++;
   }
   if (docName) {
@@ -134,6 +137,31 @@ test("a submission from outside the enrolment is still excluded", () => {
     audience
   );
   assert.equal(docs.length, 0, "pooling is per-enrolment, not global");
+});
+
+test("another family's submission can't slip in via an emergency-contact field", () => {
+  // Student B lists Mia's father as her emergency contact. Matching on every
+  // email on the submission would have put B's passport on this enrolment.
+  const audience = buildAudience("mia@example.com", [STUDENT, PARENT]);
+  const docs = documentsFromSubmission(
+    submission({
+      emails: [["Student Email", "otherkid@example.com"], ["Emergency Contact Email", "dad@example.com"]],
+      upload: [FILE],
+      label: "Passport"
+    }),
+    audience
+  );
+  assert.equal(docs.length, 0);
+});
+
+test("a parent/guardian email field still counts as the submitter", () => {
+  const audience = buildAudience("mia@example.com", [STUDENT, PARENT]);
+  const docs = documentsFromSubmission(
+    submission({ emails: [["Parent/Guardian Email", "dad@example.com"]], upload: [FILE], label: "Passport" }),
+    audience
+  );
+  assert.equal(docs.length, 1, "the parent is who fills these forms in");
+  assert.equal(docs[0].uploadedByName, "Peter Reynolds");
 });
 
 test("a submission with no email at all is excluded", () => {

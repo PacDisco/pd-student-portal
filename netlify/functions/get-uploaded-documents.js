@@ -55,6 +55,16 @@ const DOC_NAME_PATTERN_FORMS = new Set([
   // need this — the generic-label fallback below handles them automatically.
 ]);
 
+// Email fields belonging to somebody OUTSIDE the household. A submission is
+// matched to an enrolment by the addresses on it, so an emergency-contact
+// field must not count: student B naming student A's father as her next of
+// kin would otherwise file B's passport on A's enrolment. A
+// "Parent/Guardian Email" field is deliberately NOT excluded — on these
+// forms the parent is usually the person submitting, which is the whole
+// point of pooling the household.
+const OUTSIDE_HOUSEHOLD_EMAIL_RE =
+  /next of kin|next-of-kin|emergency|referee|reference|doctor|gp\b|school|teacher|instructor|agent|advisor|adviser|insurer|insurance/i;
+
 // Returns true if a Jotform upload-field label is generic enough that we'd
 // rather show the user-typed "document name" textbox value instead.
 function isGenericUploadLabel(label) {
@@ -272,9 +282,15 @@ export function documentsFromSubmission(submission, audience, isOptInForm = fals
 
   // A form can carry more than one email field — the parent's contact
   // address and the student's, say — and which one the submitter filled in
-  // varies by form. Collect them all, in order, and let the audience match
-  // decide; keeping only the last one meant a submission was attributed to
-  // (and filtered by) whichever field happened to come last.
+  // varies by form. Collect every field that could be the SUBMITTER's, in
+  // order, and let the audience match decide; keeping only the last one meant
+  // a submission was attributed to (and filtered by) whichever field happened
+  // to come last.
+  //
+  // Emergency-contact-style fields are skipped: a form naming another
+  // family's parent as next of kin would otherwise file that student's
+  // passport under this enrolment. A "Parent/Guardian Email" field is NOT
+  // skipped — on these forms the parent is usually the one submitting.
   const submissionEmails = [];
   let lastTextValue = null; // last non-empty textbox/textarea answer seen
   const fileUploads = [];
@@ -285,7 +301,9 @@ export function documentsFromSubmission(submission, audience, isOptInForm = fals
 
     if (t === "control_email" && a.answer) {
       const e = String(a.answer).toLowerCase().trim();
-      if (e && !submissionEmails.includes(e)) submissionEmails.push(e);
+      if (e && !OUTSIDE_HOUSEHOLD_EMAIL_RE.test(label) && !submissionEmails.includes(e)) {
+        submissionEmails.push(e);
+      }
     } else if (t === "control_textbox" || t === "control_textarea") {
       const v = a.answer;
       if (v && String(v).trim()) lastTextValue = String(v).trim();
