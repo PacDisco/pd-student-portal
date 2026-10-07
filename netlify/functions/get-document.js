@@ -20,6 +20,7 @@
 //   - 10-second function timeout. Slow upstream fetches will be cut off.
 
 import { verifyDocRef } from "./_shared/docref.js";
+import { isApplyFileUrl, applyFileHeaders } from "./_shared/apply-source.js";
 
 export async function handler(event) {
   try {
@@ -59,15 +60,16 @@ export async function handler(event) {
       host === "jotform.com" || host.endsWith(".jotform.com") ||
       host === "jotfor.ms"   || host.endsWith(".jotfor.ms")
     );
-    if (!isJotform) {
+    const isApply = isApplyFileUrl(target.toString()); // pd-apply applicant photos
+    if (!isJotform && !isApply) {
       return { statusCode: 400, body: JSON.stringify({ error: "Only Jotform URLs are allowed" }) };
     }
 
     // Append the API key so Jotform releases the file for download. This
     // happens server-side; the parent never sees it.
-    target.searchParams.set("apiKey", process.env.JOTFORM_API_KEY);
+    if (isJotform) target.searchParams.set("apiKey", process.env.JOTFORM_API_KEY);
 
-    const upstream = await fetch(target.toString(), { redirect: "follow" });
+    const upstream = await fetch(target.toString(), { redirect: "follow", headers: isApply ? applyFileHeaders() : undefined });
     if (!upstream.ok) {
       const text = await upstream.text().catch(() => "");
       // Log to Netlify function logs so we can diagnose why a particular

@@ -15,6 +15,8 @@
 //
 // Required env: JOTFORM_API_KEY. Optional: JOTFORM_BASE_URL.
 
+import { mergeApplySubmissions, isApplyId, getApplySubmission, updateApplySubmission } from "../_shared/apply-source.js";
+
 // Locked to the single correct application form. Override only via env.
 export const DEFAULT_FORM_IDS = (process.env.JOTFORM_APPLICATION_FORM_ID || "240277257210046")
   .split(",").map(s => s.trim()).filter(Boolean);
@@ -74,6 +76,8 @@ function isSensitive(label) {
 // Jotform API calls
 // --------------------------------------------------------------------------
 export async function getSubmission(submissionId) {
+  // pd-apply applications (ids "pda_…") live on apply.pacificdiscovery.org.
+  if (isApplyId(submissionId)) return getApplySubmission(submissionId);
   const url = `${baseUrl()}/submission/${encodeURIComponent(submissionId)}?apiKey=${encodeURIComponent(apiKey())}`;
   const res = await fetch(url, { headers: { Accept: "application/json" } });
   if (!res.ok) throw new Error(`Jotform getSubmission HTTP ${res.status}`);
@@ -83,6 +87,7 @@ export async function getSubmission(submissionId) {
 
 // params: { "submission[3]": "value", "submission[5][city]": "value", ... }
 export async function updateSubmission(submissionId, params) {
+  if (isApplyId(submissionId)) return updateApplySubmission(submissionId, params);
   const url = `${baseUrl()}/submission/${encodeURIComponent(submissionId)}?apiKey=${encodeURIComponent(apiKey())}`;
   const body = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) body.append(k, v == null ? "" : String(v));
@@ -119,6 +124,8 @@ export async function findSubmissionByEmail(email, formIds = DEFAULT_FORM_IDS) {
       if (offset >= 5000) break;
     }
   }
+  // Applications made on pd-apply (and not, or no longer, in Jotform).
+  for (const fid of formIds) all = await mergeApplySubmissions(fid, all, { email: want });
   const matches = all.filter(s => submissionEmail(s) === want);
   matches.sort((a, b) => new Date(b?.created_at || 0) - new Date(a?.created_at || 0));
   return matches[0] || null;

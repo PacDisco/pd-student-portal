@@ -17,6 +17,7 @@
 import { authenticate, authError } from "./_shared/auth.js";
 import { proxyRef } from "./_shared/docref.js";
 import { fetchDealsForContact, buildEnrolments } from "./_shared/deal.js";
+import { mergeApplySubmissions } from "./_shared/apply-source.js";
 
 export async function handler(event) {
   try {
@@ -320,6 +321,8 @@ async function loadPortraitsByEmail() {
       return list;
     }));
     allSubmissions = perForm.flat();
+    // Applications made on pd-apply carry the photo there.
+    for (const fid of formIds) allSubmissions = await mergeApplySubmissions(fid, allSubmissions);
   } catch (_) {
     return empty;
   }

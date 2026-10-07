@@ -61,7 +61,11 @@ export default async (request, context) => {
     host === "hubspot.com" ||
     /\.hubapi\.com$/i.test(host)
   );
-  if (!isJotform && !isHubSpotCdn) {
+  // Applicant photos uploaded through pd-apply (apply.pacificdiscovery.org).
+  const applyBase = Netlify.env.get("APPLY_SERVICE_URL") || "";
+  let isApply = false;
+  try { isApply = !!applyBase && host === new URL(applyBase).hostname.toLowerCase() && parsed.pathname.startsWith("/api/file/"); } catch (_) { isApply = false; }
+  if (!isJotform && !isHubSpotCdn && !isApply) {
     return jsonResponse({
       error: "Only Jotform or HubSpot URLs are allowed",
       host
@@ -83,7 +87,10 @@ export default async (request, context) => {
 
   let upstream;
   try {
-    upstream = await fetch(parsed.toString(), { redirect: "follow" });
+    upstream = await fetch(parsed.toString(), {
+      redirect: "follow",
+      headers: isApply ? { "x-apply-key": Netlify.env.get("APPLY_SERVICE_KEY") || "" } : undefined
+    });
   } catch (err) {
     console.error(`[document-proxy] fetch threw for ${parsed.host}${parsed.pathname}:`, err?.message || err);
     return jsonResponse({ error: "Upstream fetch failed", details: String(err?.message || err) }, 502);

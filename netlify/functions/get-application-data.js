@@ -22,6 +22,7 @@ const DEFAULT_FORM_IDS = (process.env.JOTFORM_APPLICATION_FORM_ID
 
 import { authenticate, authError } from "./_shared/auth.js";
 import { proxyRef } from "./_shared/docref.js";
+import { mergeApplySubmissions, isApplyForm } from "./_shared/apply-source.js";
 
 export async function handler(event) {
   try {
@@ -202,7 +203,15 @@ function formatAnswer(a) {
   return JSON.stringify(v);
 }
 
+// Jotform results plus applications made on pd-apply (see _shared/apply-source.js).
 async function fetchAllSubmissions(formId, apiKey, baseUrl) {
+  const r = await fetchJotformSubmissions(formId, apiKey, baseUrl);
+  if (!isApplyForm(formId)) return r;
+  const merged = await mergeApplySubmissions(formId, r.list || []);
+  return r.error && !merged.length ? r : { list: merged };
+}
+
+async function fetchJotformSubmissions(formId, apiKey, baseUrl) {
   const list = [];
   let offset = 0;
   const pageSize = 1000;
