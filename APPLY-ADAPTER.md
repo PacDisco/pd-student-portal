@@ -18,3 +18,13 @@ Env vars:
 | `APPLY_FORM_IDS` | optional, default `240277257210046,251668678208874` |
 
 If pd-apply is unreachable, the portal carries on with Jotform data only (a warning is logged). Test: `node tests/apply-source.test.mjs` (student) / `node test/apply-source.test.mjs` (instructor).
+
+## Payment plans
+
+Families who confirm their place on pd-apply's acceptance page choose a payment plan there (monthly, two instalments, in full, or balance later) and pd-apply charges it automatically.
+
+- `get-paid-payments` adds `plan` for the selected deal (`GET /api/service/plan?dealId=&email=`; pd-apply only answers for the student or a parent on that application). `null` when there's no plan or pd-apply is unreachable.
+- The Payments section shows **Your payment plan** (each payment and its status, the next charge) and hides the free-form *PAY NOW* and *custom amount* for those families — paying outside the plan would be charged again by it. The bank-transfer callout asks them to email admissions first (admissions can *Mark paid* a payment in the dashboard so it isn't charged).
+- **Manage payments / Pay now** calls `payment-plan-link` (POST `{ dealId }`, deal ownership checked like `get-paid-payments`), which asks pd-apply for a fresh personal link and sends them to the acceptance page: pay a missed payment, pay the rest early, or change the card / bank account.
+
+Test: `node tests/payment-plan.test.mjs`.

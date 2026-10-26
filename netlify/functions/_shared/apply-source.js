@@ -90,3 +90,31 @@ export function isApplyFileUrl(u) {
   } catch { return false; }
 }
 export function applyFileHeaders() { return { "x-apply-key": cfg().key }; }
+
+// ── payment plans (pd-apply's acceptance page) ─────────────────────────────
+
+/**
+ * The automatic payment plan for a HubSpot deal, if the family set one up on
+ * pd-apply's acceptance page. `email` must be the student or a parent on that
+ * application (pd-apply checks). Never throws: null when off / none / down.
+ */
+export async function applyPlan(dealId, email) {
+  if (!applyEnabled() || !dealId || !email) return null;
+  try {
+    const qs = new URLSearchParams({ dealId: String(dealId), email: String(email).toLowerCase().trim() });
+    const data = await call(`/api/service/plan?${qs}`);
+    return data?.plan || null;
+  } catch (err) {
+    console.warn("[apply-source plan]", err.message);
+    return null;
+  }
+}
+
+/** A fresh personal link to manage that plan (pay a missed payment, change card). */
+export async function applyPlanLink(dealId, email) {
+  const data = await call(`/api/service/plan-link`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ dealId: String(dealId), email: String(email).toLowerCase().trim() }),
+  });
+  return data?.url || null;
+}

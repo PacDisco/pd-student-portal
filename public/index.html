@@ -1440,6 +1440,18 @@
     }
 
     /* Bank-transfer (ACH / wire / SWIFT) callout */
+    .payment-plan { margin-top: 20px; max-width: 720px; border: 1px solid #e1e6e8; border-radius: 12px; padding: 18px 20px; background: #fff; }
+    .payment-plan--alert { border-color: #e9b4a9; background: #fdf3f1; }
+    .payment-plan-title { font-weight: 700; letter-spacing: .04em; font-size: 13px; color: #288195; margin-bottom: 6px; }
+    .payment-plan-lead { margin: 0 0 12px; font-size: 15px; }
+    .payment-plan-rows { display: grid; gap: 0; font-size: 14px; }
+    .payment-plan-row { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center; padding: 7px 0; border-bottom: 1px dashed #e1e6e8; }
+    .payment-plan-badge { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 1px 8px; background: #eef6f8; color: #1f6b7c; white-space: nowrap; }
+    .payment-plan-badge--paid { background: #e9f5dd; color: #3c6b14; }
+    .payment-plan-badge--bad { background: #fdecea; color: #a8321d; }
+    .payment-plan-badge--muted { background: #eee; color: #666; }
+    .payment-plan-actions { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .payment-plan-note { font-size: 13px; color: #5f666b; }
     .payment-bank-callout {
       margin-top: 20px;
       max-width: 720px;
@@ -3911,6 +3923,67 @@
     return `USD $${parseFloat(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
+  function renderPaymentPlan(plan, dealId) {
+    const fmtDate = (d) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+    const badge = (p) => {
+      switch (p.status) {
+        case "paid": return '<span class="payment-plan-badge payment-plan-badge--paid">Paid</span>';
+        case "scheduled": return `<span class="payment-plan-badge">${plan.paused ? "On hold" : "Automatic"}</span>`;
+        case "due": return '<span class="payment-plan-badge">You pay by this date</span>';
+        case "processing": case "charging": return '<span class="payment-plan-badge">Processing</span>';
+        case "failed": case "needs_admissions": return '<span class="payment-plan-badge payment-plan-badge--bad">Didn&rsquo;t go through</span>';
+        case "cancelled": return '<span class="payment-plan-badge payment-plan-badge--muted">Cancelled</span>';
+        default: return "";
+      }
+    };
+    const rows = (plan.schedule || []).map((p, i) => `<div class="payment-plan-row">
+        <div>${i === 0 ? "Deposit" : attrEsc(fmtDate(p.due))}</div>
+        <div>${paymentsFmtMoney(p.amount)}</div>
+        <div>${badge(p)}</div></div>`).join("");
+    const next = plan.next;
+    const lead = plan.needsAction
+      ? "A payment didn&rsquo;t go through. Please pay it, or update your card or bank account."
+      : plan.remaining <= 0
+        ? "Your tuition is paid in full. Thank you!"
+        : next
+          ? (next.manual
+            ? `Your remaining ${paymentsFmtMoney(next.amount)} is due by <strong>${attrEsc(fmtDate(next.due))}</strong>.`
+            : `Next payment: <strong>${paymentsFmtMoney(next.amount)}</strong> on <strong>${attrEsc(fmtDate(next.due))}</strong>, charged automatically to your ${plan.method === "ach" ? "bank account" : "card"} (plus its processing fee). We email you 3 days before.`)
+          : "Your payments are being processed.";
+    const btn = plan.remaining > 0
+      ? `<button type="button" class="payment-action-btn${plan.needsAction ? "" : " payment-action-btn--secondary"}" data-deal-id="${attrEsc(dealId || "")}" onclick="return openPaymentPlan(event, this);">${plan.needsAction ? "PAY NOW" : plan.automatic ? "MANAGE PAYMENTS" : "PAY BALANCE"}</button>
+         <span class="payment-plan-note">${plan.automatic ? "Pay a payment early, pay off the rest, or change your card or bank account." : "Pay by card or bank account."}</span>`
+      : "";
+    return `<div class="payment-plan${plan.needsAction ? " payment-plan--alert" : ""}">
+        <div class="payment-plan-title">YOUR PAYMENT PLAN${plan.planName ? ` · ${attrEsc(plan.planName.toUpperCase())}` : ""}</div>
+        <p class="payment-plan-lead">${lead}</p>
+        <div class="payment-plan-rows">${rows}</div>
+        ${btn ? `<div class="payment-plan-actions">${btn}</div>` : ""}
+      </div>`;
+  }
+
+  // Opens the family's acceptance page on apply.pacificdiscovery.org with a
+  // fresh personal link (asked for on click, so links aren't minted on every
+  // page view).
+  window.openPaymentPlan = async function (event, el) {
+    if (event) event.preventDefault();
+    const label = el.textContent;
+    el.disabled = true; el.textContent = "OPENING…";
+    try {
+      const res = await fetch("/.netlify/functions/payment-plan-link", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dealId: el.dataset.dealId || selectedDealId || null })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.url) throw new Error(data.error || "Couldn't open your payment plan.");
+      window.location.href = data.url;
+    } catch (err) {
+      alert(err.message);
+      el.disabled = false; el.textContent = label;
+    }
+    return false;
+  };
+
   async function loadPayments() {
     // Pull paid payments + deal metadata. The endpoint already returns
     // dealAmount (Deal's standard `amount` field) plus a parsed array of
@@ -3994,7 +4067,14 @@
     // ---- Summary header (program total / paid / due) ----
     // The AMOUNT DUE row is itself a clickable Stripe Checkout link when
     // there's a non-zero balance — pays the full remaining amount + 3.5%.
-    const dueClickable = amountDue > 0;
+    // ---- Automatic payment plan (set up on the acceptance page) ----
+    // When there's one, the free-form "pay now" / custom amount are hidden:
+    // paying outside the plan would be charged again by it. The family pays
+    // missed payments, pays off early or changes their card from the plan.
+    const plan = paidData?.plan && !paidData.plan.withdrawn ? paidData.plan : null;
+    const planHtml = plan ? renderPaymentPlan(plan, paidData?.dealId) : "";
+
+    const dueClickable = amountDue > 0 && !plan;
     const dueChargeAmount = dueClickable ? paymentsSurcharge(amountDue) : 0;
     const summaryHtml = `
       <div class="payment-summary">
@@ -4026,7 +4106,7 @@
     `;
 
     // ---- Custom-amount input ----
-    const customAmountHtml = `
+    const customAmountHtml = plan ? "" : `
       <div class="payment-custom">
         <div class="payment-custom-label">OR PAY A CUSTOM AMOUNT</div>
         <div class="payment-custom-row">
@@ -4047,7 +4127,7 @@
       <div class="payment-bank-callout">
         <div class="payment-bank-callout-text">
           <div class="payment-bank-callout-title">Prefer to pay by bank transfer?</div>
-          <div class="payment-bank-callout-sub">Pay via ACH or wire transfer with no processing fee.</div>
+          <div class="payment-bank-callout-sub">Pay via ACH or wire transfer with no processing fee.${plan ? " You're on an automatic payment plan — if you pay a payment by bank transfer, email admissions@pacificdiscovery.org first so we don't also charge it." : ""}</div>
         </div>
         <button type="button" class="payment-action-btn payment-action-btn--secondary"
           onclick="openBankTransferModal()">VIEW BANK DETAILS</button>
@@ -4111,7 +4191,8 @@
       ${switcherHtml}
       ${infoHtml}
       ${summaryHtml}
-      ${actionsHtml}
+      ${planHtml}
+      ${plan ? "" : actionsHtml}
       ${customAmountHtml}
       ${bankTransferHtml}
       ${historyHtml}

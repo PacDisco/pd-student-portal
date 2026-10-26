@@ -27,7 +27,8 @@
 //     totalPaid,             // parsed sum, with total_amount_paid fallback
 //     totalPaidSource,       // "payments" | "total_amount_paid" | "none"
 //     payments: [...],       // parsed payment_1..10, in schedule order
-//     enrolments: [...]      // for the switcher
+//     enrolments: [...],     // for the switcher
+//     plan                   // pd-apply automatic payment plan for this deal, or null
 //   }
 //
 // The payment_N parsing itself lives in _shared/payments.js, which handles
@@ -35,6 +36,7 @@
 
 import { authenticate, authError } from "./_shared/auth.js";
 import { resolveEnrolmentsForEmail, toClientEnrolment } from "./_shared/deal.js";
+import { applyPlan } from "./_shared/apply-source.js";
 
 const json = (statusCode, payload) => ({
   statusCode,
@@ -81,7 +83,13 @@ export async function handler(event) {
       });
     }
 
+    // Families who confirmed their place on pd-apply's acceptance page have an
+    // automatic payment plan there; the page shows it instead of the free-form
+    // "pay now" so nobody pays twice.
+    const plan = await applyPlan(selected.id, identity.email);
+
     return json(200, {
+      plan,
       dealId: selected.id,
       dealName: selected.name,
       dealKind: selected.kind,
