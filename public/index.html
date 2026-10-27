@@ -1442,6 +1442,9 @@
     /* Bank-transfer (ACH / wire / SWIFT) callout */
     .payment-plan { margin-top: 20px; max-width: 720px; border: 1px solid #e1e6e8; border-radius: 12px; padding: 18px 20px; background: #fff; }
     .payment-plan--alert { border-color: #e9b4a9; background: #fdf3f1; }
+    .payment-plan--offer { border-color: #9fd3df; background: #eef8fa; }
+    .payment-summary-row--due .payment-summary-value--plan { text-align: right; color: #2f2f2f; font-size: 18px; }
+    .payment-summary-plan-note { display: block; font-size: 12px; font-weight: 400; color: #5f666b; text-transform: none; letter-spacing: 0; }
     .payment-plan-title { font-weight: 700; letter-spacing: .04em; font-size: 13px; color: #288195; margin-bottom: 6px; }
     .payment-plan-lead { margin: 0 0 12px; font-size: 15px; }
     .payment-plan-rows { display: grid; gap: 0; font-size: 14px; }
@@ -3924,6 +3927,18 @@
   }
 
   function renderPaymentPlan(plan, dealId) {
+    // Accepted, deposit not paid yet: send them to their acceptance page,
+    // where they choose a payment plan (and see any discounts).
+    if (plan.state === "offer") {
+      const fmtWhen = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "";
+      return `<div class="payment-plan payment-plan--offer">
+          <div class="payment-plan-title">YOU&rsquo;VE BEEN ACCEPTED</div>
+          <p class="payment-plan-lead">${plan.holdPassed
+            ? "The hold on your place has passed. Please contact <a href=\"mailto:admissions@pacificdiscovery.org\">admissions@pacificdiscovery.org</a> &mdash; they can usually extend it."
+            : `Confirm your place by paying your ${paymentsFmtMoney(plan.deposit)} deposit${plan.holdUntil ? ` by <strong>${attrEsc(fmtWhen(plan.holdUntil))}</strong>` : ""}. You&rsquo;ll choose how to pay the rest &mdash; monthly, in instalments or in full.`}</p>
+          ${plan.holdPassed ? "" : `<div class="payment-plan-actions"><button type="button" class="payment-action-btn" data-deal-id="${attrEsc(dealId || "")}" onclick="return openPaymentPlan(event, this);">CONFIRM MY PLACE</button></div>`}
+        </div>`;
+    }
     const fmtDate = (d) => new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
     const badge = (p) => {
       switch (p.status) {
@@ -4100,7 +4115,9 @@
                   ${paymentsFmtMoney(amountDue)}
                   <span class="payment-summary-due-cta">PAY NOW &rarr;</span>
                 </a>`
-            : `<div class="payment-summary-value">${paymentsFmtMoney(0)}</div>`}
+            : plan && amountDue > 0
+              ? `<div class="payment-summary-value payment-summary-value--plan">${paymentsFmtMoney(amountDue)}<span class="payment-summary-plan-note">${plan.state === "offer" ? "confirm your place below" : "on your payment plan"}</span></div>`
+              : `<div class="payment-summary-value">${paymentsFmtMoney(0)}</div>`}
         </div>
       </div>
     `;
@@ -4127,7 +4144,7 @@
       <div class="payment-bank-callout">
         <div class="payment-bank-callout-text">
           <div class="payment-bank-callout-title">Prefer to pay by bank transfer?</div>
-          <div class="payment-bank-callout-sub">Pay via ACH or wire transfer with no processing fee.${plan ? " You're on an automatic payment plan — if you pay a payment by bank transfer, email admissions@pacificdiscovery.org first so we don't also charge it." : ""}</div>
+          <div class="payment-bank-callout-sub">Pay via ACH or wire transfer with no processing fee.${plan?.state === "plan" ? " You're on an automatic payment plan — if you pay a payment by bank transfer, email admissions@pacificdiscovery.org first so we don't also charge it." : plan?.state === "offer" ? " To pay your deposit by bank transfer, email admissions@pacificdiscovery.org first so we can confirm your place." : ""}</div>
         </div>
         <button type="button" class="payment-action-btn payment-action-btn--secondary"
           onclick="openBankTransferModal()">VIEW BANK DETAILS</button>
