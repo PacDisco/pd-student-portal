@@ -3929,6 +3929,13 @@
   function renderPaymentPlan(plan, dealId) {
     // Accepted, deposit not paid yet: send them to their acceptance page,
     // where they choose a payment plan (and see any discounts).
+    if (plan.state === "choose") {
+      return `<div class="payment-plan payment-plan--offer">
+          <div class="payment-plan-title">CHOOSE YOUR PAYMENT PLAN</div>
+          <p class="payment-plan-lead">We&rsquo;ve received your ${paymentsFmtMoney(plan.deposit)} deposit &mdash; your place is held. Choose how you&rsquo;d like to pay the rest of your tuition: monthly, in instalments or in full.</p>
+          <div class="payment-plan-actions"><button type="button" class="payment-action-btn" data-deal-id="${attrEsc(dealId || "")}" onclick="return openPaymentPlan(event, this);">CHOOSE MY PAYMENT PLAN</button></div>
+        </div>`;
+    }
     if (plan.state === "offer") {
       const fmtWhen = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "";
       return `<div class="payment-plan payment-plan--offer">
@@ -4116,7 +4123,7 @@
                   <span class="payment-summary-due-cta">PAY NOW &rarr;</span>
                 </a>`
             : plan && amountDue > 0
-              ? `<div class="payment-summary-value payment-summary-value--plan">${paymentsFmtMoney(amountDue)}<span class="payment-summary-plan-note">${plan.state === "offer" ? "confirm your place below" : "on your payment plan"}</span></div>`
+              ? `<div class="payment-summary-value payment-summary-value--plan">${paymentsFmtMoney(amountDue)}<span class="payment-summary-plan-note">${plan.state === "offer" ? "confirm your place below" : plan.state === "choose" ? "choose your payment plan below" : "on your payment plan"}</span></div>`
               : `<div class="payment-summary-value">${paymentsFmtMoney(0)}</div>`}
         </div>
       </div>
