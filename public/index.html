@@ -1447,6 +1447,7 @@
     .payment-summary-plan-note { display: block; font-size: 12px; font-weight: 400; color: #5f666b; text-transform: none; letter-spacing: 0; }
     .payment-plan-title { font-weight: 700; letter-spacing: .04em; font-size: 13px; color: #288195; margin-bottom: 6px; }
     .payment-plan-lead { margin: 0 0 12px; font-size: 15px; }
+    .payment-plan-save { margin: 0 0 12px; padding: 8px 12px; border-radius: 8px; background: #fff1e3; color: #8a4100; border: 1px solid #e9a25b; }
     .payment-plan-rows { display: grid; gap: 0; font-size: 14px; }
     .payment-plan-row { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center; padding: 7px 0; border-bottom: 1px dashed #e1e6e8; }
     .payment-plan-badge { font-size: 12px; font-weight: 600; border-radius: 999px; padding: 1px 8px; background: #eef6f8; color: #1f6b7c; white-space: nowrap; }
@@ -3973,12 +3974,13 @@
             : `Next payment: <strong>${paymentsFmtMoney(next.amount)}</strong> on <strong>${attrEsc(fmtDate(next.due))}</strong>, charged automatically to your ${plan.method === "ach" ? "bank account" : "card"} (plus its processing fee). We email you 3 days before.`)
           : "Your payments are being processed.";
     const btn = plan.remaining > 0
-      ? `<button type="button" class="payment-action-btn${plan.needsAction ? "" : " payment-action-btn--secondary"}" data-deal-id="${attrEsc(dealId || "")}" onclick="return openPaymentPlan(event, this);">${plan.needsAction ? "PAY NOW" : plan.automatic ? "MANAGE PAYMENTS" : "PAY BALANCE"}</button>
+      ? `<button type="button" class="payment-action-btn${plan.needsAction ? "" : " payment-action-btn--secondary"}" data-deal-id="${attrEsc(dealId || "")}" onclick="return openPaymentPlan(event, this);">${plan.needsAction ? "PAY NOW" : plan.payOff ? `PAY OFF &amp; SAVE ${paymentsFmtMoney(plan.payOff.amount)}` : plan.automatic ? "MANAGE PAYMENTS" : "PAY BALANCE"}</button>
          <span class="payment-plan-note">${plan.automatic ? "Pay a payment early, pay off the rest, or change your card or bank account." : "Pay by card or bank account."}</span>`
       : "";
     return `<div class="payment-plan${plan.needsAction ? " payment-plan--alert" : ""}">
         <div class="payment-plan-title">YOUR PAYMENT PLAN${plan.planName ? ` · ${attrEsc(plan.planName.toUpperCase())}` : ""}</div>
         <p class="payment-plan-lead">${lead}</p>
+        ${plan.payOff && !plan.needsAction && plan.remaining > 0 ? `<p class="payment-plan-save">Pay off the rest (${paymentsFmtMoney(plan.payOff.rest)}) by <strong>${attrEsc(fmtDate(plan.payOff.until))}</strong> and save <strong>${paymentsFmtMoney(plan.payOff.amount)}</strong> — you&rsquo;d pay ${paymentsFmtMoney(plan.payOff.pay)}.</p>` : ""}
         <div class="payment-plan-rows">${rows}</div>
         ${btn ? `<div class="payment-plan-actions">${btn}</div>` : ""}
       </div>`;
