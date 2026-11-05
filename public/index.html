@@ -1044,6 +1044,15 @@
     .leader-card--admin             { border-top-color: #55BBD2; }
     .leader-card--admin             .leader-card-role { color: #55BBD2; }
 
+    /* Insurance tile: red alert until the insurance section has been opened once */
+    .tile.tile--alert { border-top-color: #c0392b !important; }
+    .tile-badge.tile-badge--alert { background: #c0392b; animation: insPulse 1.6s ease-in-out infinite; }
+    @keyframes insPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(192,57,43,.45); } 50% { box-shadow: 0 0 0 6px rgba(192,57,43,0); } }
+    @media (prefers-reduced-motion: reduce) { .tile-badge.tile-badge--alert { animation: none; } }
+    .ins-standard { margin-bottom: 18px; padding-bottom: 18px; border-bottom: 1px solid #e5e7eb; }
+    .ins-standard .ins-cta { display: inline-block; background: #288195; color: #fff !important; text-decoration: none !important; font-weight: 600; padding: 10px 18px; border-radius: 4px; }
+    .ins-standard .ins-disclosure { font-size: 12px; color: #666; }
+
     /* VISAS, FLIGHTS & INSURANCE — stacked rich-text sections */
     .info-sections {
       display: flex;
@@ -2315,8 +2324,9 @@
     <span id="messageBoardBadge" class="tile-badge" style="display:none;">NEW</span>
   </div>
 
-  <div class="tile" onclick="loadSection('destination_overview_content')">
+  <div id="insuranceTile" class="tile" onclick="loadSection('destination_overview_content')">
     VISAS, FLIGHTS & INSURANCE
+    <span id="insuranceBadge" class="tile-badge tile-badge--alert" style="display:none;">INSURANCE</span>
   </div>
 
   <div class="tile" onclick="loadSection('travel_information_content')">
@@ -3313,6 +3323,25 @@
     return out;
   }
 
+  // Insurance alert: a red badge on VISAS, FLIGHTS & INSURANCE until the
+  // tab has been opened once (per program, per browser).
+  function insuranceSeenKey() {
+    return `ins_seen_${portalData.hs_object_id || ""}`;
+  }
+  function applyInsuranceBadge() {
+    const badge = document.getElementById("insuranceBadge");
+    const tile = document.getElementById("insuranceTile");
+    if (!badge) return;
+    let seen = null;
+    try { seen = localStorage.getItem(insuranceSeenKey()); } catch (e) { /* private mode: show it */ }
+    badge.style.display = seen ? "none" : "inline-block";
+    if (tile) tile.classList.toggle("tile--alert", !seen);
+  }
+  function markInsuranceSeen() {
+    try { localStorage.setItem(insuranceSeenKey(), new Date().toISOString()); } catch (e) { /* ignore */ }
+    applyInsuranceBadge();
+  }
+
   function applyMessageBoardBadge() {
     const badge = document.getElementById("messageBoardBadge");
     if (!badge) return;
@@ -3617,6 +3646,7 @@
       safeRun("applyVisibility",        () => applyVisibility(portalData.labels));
       safeRun("assignTileColors",       () => assignTileColors());
       safeRun("applyMessageBoardBadge", () => applyMessageBoardBadge());
+      safeRun("applyInsuranceBadge", () => applyInsuranceBadge());
       safeRun("loadSection",            () => loadSection("trip_information_content"));
       safeRun("showInstallPrompt",      () => showInstallPrompt());
       safeRun("showDesktopQr",          () => showDesktopQr());
@@ -3818,6 +3848,31 @@
     return `<div class="expedition-grid">${grid}</div>`;
   }
 
+  // Pacific Discovery's standard travel insurance guidance, shown at the top
+  // of the tab above the program's own insurance notes (insurance_information).
+  // World Nomads affiliate rules: no plan recommendations or coverage claims,
+  // and the affiliate disclosure stays with the link.
+  const INSURANCE_AFFILIATE_URL = "https://www.kqzyfj.com/click-101918016-17344096?sid=portal";
+  function standardInsuranceHtml(p) {
+    const fmt = (v) => {
+      if (!v) return "";
+      const d = /^\d+$/.test(String(v)) ? new Date(Number(v)) : new Date(/^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? `${v}T12:00:00Z` : v);
+      return isNaN(d) ? "" : d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
+    };
+    const start = fmt(p.program_start_date);
+    const end = fmt(p.program_end_date);
+    const dates = start && end ? ` (the program itself runs ${start} – ${end})` : "";
+    return `
+      <div class="ins-standard">
+        <p><strong>Pacific Discovery requires every student to have travel insurance for their program</strong>, with at least $250,000 emergency medical and $700,000 emergency evacuation cover, including the activities on your program.</p>
+        <p>Make sure your policy covers your whole trip — from the day you leave home to the day you get back, including your travel days on each side of the program${dates}.</p>
+        <p><strong>Cancel For Any Reason (CFAR):</strong> if you want this kind of cover, many policies only offer it within a short window after your first trip payment — often just 7 days — so it's worth arranging your insurance soon after paying your deposit.</p>
+        <p>One option is World Nomads — you can get a quote and read exactly what each plan covers on their website.</p>
+        <p><a class="ins-cta" href="${INSURANCE_AFFILIATE_URL}" target="_blank" rel="noopener sponsored">Get a World Nomads quote</a></p>
+        <p class="ins-disclosure"><em>Pacific Discovery is a World Nomads affiliate and may receive a fee if you buy a policy through this link. We aren't licensed to give insurance advice — please read the policy wording to check it suits you.</em></p>
+      </div>`;
+  }
+
   function loadFlightsAndInsurance() {
     // VISAS, FLIGHTS & INSURANCE tab — three stacked rich-text sections,
     // each backed by a separate HubSpot property on the Program object:
@@ -3829,6 +3884,15 @@
     // editor outputs trusted HTML). Empty fields fall back to a "TBC" stub
     // so the structure is consistent even before content is filled in.
     const p = portalData;
+
+    function insuranceSection() {
+      const extra = (p.insurance_information || "").trim();
+      return `
+        <div class="info-section">
+          <div class="info-section-label">INSURANCE INFORMATION</div>
+          <div class="info-section-body">${standardInsuranceHtml(p)}${extra}</div>
+        </div>`;
+    }
 
     function section(label, html) {
       const body = (html || "").trim()
@@ -3858,9 +3922,9 @@
 
     return `
       <div class="info-sections">
+        ${insuranceSection()}
         ${factFind}
         ${section("FLIGHT INFORMATION",    p.flight_information)}
-        ${section("INSURANCE INFORMATION", p.insurance_information)}
         ${section("VISA INFORMATION",      p.visa_information)}
       </div>
     `;
