@@ -65,6 +65,15 @@ export function parseMoney(value) {
 // Deliberately strict — it must not match reference numbers such as
 // "20260817I1B7031R003349" or "PD-0000000465".
 const BARE_MONEY = /^\$?\d{1,3}(?:,\d{3})*(?:\.\d+)?$|^\$?\d+(?:\.\d+)?$/;
+// Refunds: a leading minus ("-250", "−250", "-$250") or brackets ("(250)").
+const SIGNED = /^(?:[-\u2212]\s*|\()(.*?)\)?$/;
+function unsign(token) {
+  const t = String(token || "").trim();
+  const m = t.match(SIGNED);
+  return m && (t[0] !== "(" || t.endsWith(")")) ? { neg: true, body: m[1].trim() } : { neg: false, body: t };
+}
+// A row that says it's a refund ("-250, refunded by mistake", "250, refund") counts against what's been paid.
+const REFUND_WORD = /\brefund(?:ed|s)?\b/i;
 
 export function looksLikeBareMoney(token) {
   return BARE_MONEY.test(String(token || "").trim());
@@ -131,7 +140,9 @@ function parseLabelledEntry(trimmed) {
     if (!(key in fields)) fields[key] = m[2].trim();
   }
 
-  const amount = parseMoney(fields["amount"]) ?? parseMoney(fields["total"]);
+  const amtRaw = fields["amount"] ?? fields["total"];
+  let amount = parseMoney(fields["amount"]) ?? parseMoney(fields["total"]);
+  if (amount != null && (unsign(amtRaw).neg || REFUND_WORD.test(trimmed))) amount = -amount;
   const reference = fields["payment reference"] || fields["transaction id"] || null;
   const piMatch = trimmed.match(/pi_[A-Za-z0-9]+/);
 
@@ -172,12 +183,15 @@ function parsePositionalEntry(trimmed) {
   // First token that is a bare money value. Strict matching means a bank
   // reference like "20260817I1B7031R003349" is never mistaken for one.
   let amount = null;
+  let amountTok = null;
   for (const tok of tokens) {
     if (looksLikeDate(tok)) continue;
-    if (!looksLikeBareMoney(tok)) continue;
-    const n = parseMoney(tok);
-    if (n != null) { amount = n; break; }
+    const { neg, body } = unsign(tok);
+    if (!looksLikeBareMoney(body)) continue;
+    const n = parseMoney(body);
+    if (n != null) { amount = neg ? -n : n; amountTok = tok; break; }
   }
+  if (amount > 0 && REFUND_WORD.test(trimmed)) amount = -amount;
 
   let dateRaw = null;
   let dateIso = null;
@@ -189,7 +203,7 @@ function parsePositionalEntry(trimmed) {
   // Whatever is left that is neither the amount nor the date is the
   // reference (a Stripe PI, a bank transaction id, or a payer name).
   const reference = tokens.find(t =>
-    t !== dateRaw && !looksLikeBareMoney(t) && !looksLikeDate(t)
+    t !== dateRaw && t !== amountTok && !looksLikeBareMoney(unsign(t).body) && !looksLikeDate(t)
   ) || (piMatch ? piMatch[0] : null);
 
   return {
@@ -241,7 +255,7 @@ export function parseDealPayments(properties = {}) {
 // dry-run report surfaces.
 export function totalPaidForDeal(properties = {}, payments = null) {
   const entries = payments || parseDealPayments(properties);
-  const summed = round2(entries.reduce((acc, e) => acc + (Number(e.amount) || 0), 0));
+  const summed = Math.max(0, round2(entries.reduce((acc, e) => acc + (Number(e.amount) || 0), 0)));
 
   const declaredRaw = parseFloat(properties.total_amount_paid);
   const declared = Number.isFinite(declaredRaw) && declaredRaw > 0 ? round2(declaredRaw) : 0;
@@ -253,7 +267,9 @@ export function totalPaidForDeal(properties = {}, payments = null) {
   const unreadable = entries.some(e => e.amount == null);
   const discrepancy = Boolean(summed && declared && Math.abs(summed - declared) > 0.01);
 
-  if (declared > summed) {
+  // A refund row on the deal means the rows are the up-to-date record (total_amount_paid is often not updated for refunds).
+  const refunded = entries.some(e => Number(e.amount) < 0);
+  if (declared > summed && !refunded) {
     return { totalPaid: declared, source: "total_amount_paid", discrepancy, unreadable };
   }
   return { totalPaid: summed, source: "payments", discrepancy, unreadable };
