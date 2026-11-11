@@ -22,6 +22,60 @@ const GLOBAL_PORTAL_ID = "54796059552";
 
 import { authenticateAdmin, authError } from "./_shared/auth.js";
 
+const DAY = 24 * 60 * 60 * 1000;
+const isoDay = (v) => {
+  if (!v) return null;
+  const d = new Date(/^\d+$/.test(String(v)) ? Number(v) : v);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+};
+const TERM_RE = /\b(spring|summer|fall|autumn|winter)\b/i;
+
+/**
+ * Where a program is in its life, for the admin picker's sort / filter and its
+ * Completed folder. Pure (tested).
+ *
+ *   completed   — the day after program_end_date; with no end date, 30 days
+ *                 after the start; with no dates, when the year in its name
+ *                 has passed. A Status of Completed / Cancelled also counts.
+ *   in-progress — started, not yet ended.
+ *   upcoming    — start date ahead.
+ *   no-dates    — nothing to go on yet (shown with the upcoming programs).
+ * Also: the destination ("2027 Australia & Bali Spring Semester Program" →
+ * "Australia & Bali") and the term (Spring / Summer / Fall) for the filters.
+ */
+export function describePortal(props = {}, { now = new Date() } = {}) {
+  const today = now.toISOString().slice(0, 10);
+  const start = isoDay(props.program_start_date);
+  const end = isoDay(props.program_end_date);
+  const name = props.program_name || props.pacific_discovery_program || props.portal_title || "";
+  const yearM = /\b(20\d\d)\b/.exec(`${name} ${props.pacific_discovery_program || ""}`);
+  const year = start ? Number(start.slice(0, 4)) : yearM ? Number(yearM[1]) : null;
+  const status = String(props.status || "").trim();
+  let phase;
+  if (/cancel/i.test(status)) phase = "cancelled";
+  else if (/complete|finish/i.test(status)) phase = "completed";
+  else if (end && end < today) phase = "completed";
+  else if (!end && start && new Date(start).getTime() + 30 * DAY < now.getTime()) phase = "completed";
+  else if (start && start <= today) phase = "in-progress";
+  else if (start) phase = "upcoming";
+  else if (year && year < now.getUTCFullYear()) phase = "completed";
+  else phase = "no-dates";
+  const label = `${props.pacific_discovery_program || ""} ${name}`;
+  let term = (TERM_RE.exec(label)?.[1] || "").toLowerCase();
+  if (term === "autumn") term = "fall";
+  if (!term && start) { const m = Number(start.slice(5, 7)); term = m <= 5 ? "spring" : m <= 8 ? "summer" : "fall"; }
+  const country = name
+    .replace(/\b20\d\d\b/g, " ")
+    .replace(/\b(spring|summer|fall|autumn|winter|mini|semester|program(me)?)\b/gi, " ")
+    .replace(/\s+/g, " ").trim().replace(/^[-–—,|]+|[-–—,|]+$/g, "").trim();
+  return {
+    start, end, year, phase, status: status || null,
+    completed: phase === "completed" || phase === "cancelled",
+    term: term ? term[0].toUpperCase() + term.slice(1) : "",
+    country: /^test/i.test(country) ? "" : country,
+  };
+}
+
 export async function handler(event) {
   try {
     // Admin-only: identity (and admin role) come from the verified token.
@@ -92,7 +146,7 @@ export async function handler(event) {
         limit: "100",
         // Request both new (program_*) and legacy properties so the admin
         // trip-picker can fall back gracefully on un-migrated records.
-        properties: "program_name,program_start_date,program_end_date,program_tuition,portal_title,destination,price,hs_object_id"
+        properties: "program_name,pacific_discovery_program,program_start_date,program_end_date,program_tuition,portal_title,destination,price,hs_createdate,hs_object_id"
       });
       if (after) qs.set("after", after);
 
@@ -130,7 +184,9 @@ export async function handler(event) {
 
         portals.push({
           id: String(r.id),
-          title: props.program_name || props.portal_title || "(untitled trip)",
+          title: props.program_name || props.pacific_discovery_program || props.portal_title || "(untitled trip)",
+          program: props.pacific_discovery_program || "",
+          createdAt: props.hs_createdate || null,
           destination: dateRange || props.destination || "",
           price: props.program_tuition || props.price || null,
           // Raw program_end_date so the admin trip-picker can hide trips
@@ -138,7 +194,8 @@ export async function handler(event) {
           // raw HubSpot value (millisecond epoch or YYYY-MM-DD) so the
           // frontend's Date() parsing handles both.
           endDate: props.program_end_date || null,
-          associated: associatedIds.has(String(r.id))
+          associated: associatedIds.has(String(r.id)),
+          ...describePortal(props),
         });
       }
       after = listData.paging?.next?.after;
